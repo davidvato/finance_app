@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { 
-  getCategories, createCategory,
+  getCategories, createCategory, updateCategory, deleteCategory,
   getTransactions, createTransaction, syncTransactions,
   getBudgets, setBudget
 } from '../controllers/financeController';
@@ -14,6 +14,8 @@ router.use(authenticateJWT);
 // Categories
 router.get('/categories', getCategories);
 router.post('/categories', createCategory);
+router.put('/categories/:id', updateCategory);
+router.delete('/categories/:id', deleteCategory);
 
 // Transactions
 router.get('/transactions', getTransactions);
