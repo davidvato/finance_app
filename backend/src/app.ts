@@ -8,7 +8,10 @@ import financeRoutes from './routes/financeRoutes';
 const createApp = () => {
   const app = express();
 
-  app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+  const allowedOrigins = ['http://localhost:5173'];
+  if (process.env.FRONTEND_URL) allowedOrigins.push(process.env.FRONTEND_URL);
+  
+  app.use(cors({ origin: allowedOrigins, credentials: true }));
   app.use(express.json());
   app.use(cookieParser());
 
