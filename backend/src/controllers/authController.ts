@@ -61,8 +61,18 @@ export const logout = (req: Request, res: Response): void => {
   res.json({ message: 'Logged out successfully' });
 };
 
-export const me = (req: AuthRequest, res: Response): void => {
-  res.json({ user: req.user });
+export const me = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const result = await query('SELECT id, username, role, must_change_password, budget_start_day FROM users WHERE id = $1', [req.user?.id]);
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Me endpoint error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 };
 
 export const changePassword = async (req: AuthRequest, res: Response): Promise<void> => {
