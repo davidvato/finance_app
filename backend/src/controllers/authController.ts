@@ -36,7 +36,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
       maxAge: 15 * 60 * 1000 // 15 minutes
     });
 
@@ -93,7 +93,7 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
       maxAge: 15 * 60 * 1000
     });
 
