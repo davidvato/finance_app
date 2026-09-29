@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Plus, SlidersHorizontal, TrendingDown, TrendingUp, ChevronDown, X } from 'lucide-react';
+import { Plus, SlidersHorizontal, TrendingDown, TrendingUp, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import BottomNav from '../components/BottomNav';
 import AddTransactionSheet, { type Transaction } from '../components/AddTransactionSheet';
+import { useAuth } from '../context/AuthContext';
+import { getCycleDates } from '../utils/dateUtils';
 
 interface Category {
   id: string;
@@ -15,6 +17,7 @@ interface Category {
 type FilterType = 'ALL' | 'EXPENSE' | 'INCOME';
 
 const Transactions: React.FC = () => {
+  const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,6 +26,14 @@ const Transactions: React.FC = () => {
   const [filterType, setFilterType] = useState<FilterType>('ALL');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('');
   const [showCategoryFilter, setShowCategoryFilter] = useState(false);
+  
+  const [currentDate, setCurrentDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+
+  const startDay = user?.budget_start_day || 1;
+  const cycle = getCycleDates(currentDate, startDay);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -52,11 +63,16 @@ const Transactions: React.FC = () => {
     setIsSheetOpen(true);
   };
 
+  const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+
   // Filtering
   const filtered = transactions.filter(tx => {
+    const txDate = tx.transaction_date.split('T')[0];
+    const cycleMatch = txDate >= cycle.startDate && txDate <= cycle.endDate;
     const typeMatch = filterType === 'ALL' || tx.type === filterType;
     const catMatch = !filterCategoryId || tx.category_id === filterCategoryId;
-    return typeMatch && catMatch;
+    return cycleMatch && typeMatch && catMatch;
   });
 
   // Group by date
@@ -103,6 +119,17 @@ const Transactions: React.FC = () => {
             className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 transition-all active:scale-95"
           >
             <Plus className="w-5 h-5 text-white" strokeWidth={2.5} />
+          </button>
+        </div>
+
+        {/* Month selector */}
+        <div className="flex items-center justify-between bg-slate-800/80 rounded-2xl p-2 mb-4 border border-slate-700/50">
+          <button onClick={prevMonth} className="p-2 text-slate-400 hover:text-white transition-colors">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <span className="text-white font-semibold capitalize">{cycle.label}</span>
+          <button onClick={nextMonth} className="p-2 text-slate-400 hover:text-white transition-colors">
+            <ChevronRight className="w-5 h-5" />
           </button>
         </div>
 
