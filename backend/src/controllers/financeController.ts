@@ -43,8 +43,7 @@ export const getTransactions = async (req: AuthRequest, res: Response): Promise<
 export const createTransaction = async (req: AuthRequest, res: Response): Promise<void> => {
   const { id, category_id, amount, type, description, transaction_date } = req.body;
   
-  // Use client ID if provided (for offline sync) or generate a new one
-  const txId = id || uuidv4();
+  const txId = id || crypto.randomUUID();
 
   try {
     const result = await query(
@@ -97,7 +96,7 @@ export const syncTransactions = async (req: AuthRequest, res: Response): Promise
 
 // Budgets
 export const getBudgets = async (req: AuthRequest, res: Response): Promise<void> => {
-  const { year_month } = req.query;
+  const year_month = req.query.year_month as string | undefined;
   
   try {
     // IDOR Protection: Query restricted by user_id
