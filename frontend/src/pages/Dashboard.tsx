@@ -5,6 +5,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import BottomNav from '../components/BottomNav';
 import AddTransactionSheet from '../components/AddTransactionSheet';
 import { useAuth } from '../context/AuthContext';
+import { getCycleDates } from '../utils/dateUtils';
+import { useNavigate } from 'react-router-dom';
 
 interface Category {
   id: string;
@@ -28,6 +30,7 @@ interface Transaction {
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -36,7 +39,8 @@ const Dashboard: React.FC = () => {
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
 
-  const yearMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  const startDay = user?.budget_start_day || 1;
+  const cycle = getCycleDates(currentDate, startDay);
 
   const fetchData = async () => {
     try {
@@ -53,16 +57,15 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [yearMonth]); // Currently fetching all tx, but we can filter by month locally
+  }, [cycle.cycleId]);
 
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  const monthName = currentDate.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
 
-  // Filter transactions for current month
+  // Filter transactions for current cycle
   const monthlyTx = transactions.filter(tx => {
     const txDate = tx.transaction_date.split('T')[0];
-    return txDate.startsWith(yearMonth);
+    return txDate >= cycle.startDate && txDate <= cycle.endDate;
   });
 
   const expenses = monthlyTx.filter(t => t.type === 'EXPENSE').reduce((acc, t) => acc + parseFloat(t.amount), 0);
@@ -88,8 +91,8 @@ const Dashboard: React.FC = () => {
       {/* Header & Month Selector */}
       <div className="bg-gradient-to-br from-slate-800 to-slate-900 px-5 pt-12 pb-6 rounded-b-3xl shadow-lg border-b border-slate-700/50">
         <div className="flex justify-between items-center mb-6">
-          <div>
-            <p className="text-slate-400 text-sm">Hola, {user?.username}</p>
+          <div className="cursor-pointer" onClick={() => navigate('/profile')}>
+            <p className="text-slate-400 text-sm hover:text-slate-300">Hola, {user?.username} ⚙️</p>
             <h1 className="text-2xl font-bold text-white">Mi Resumen</h1>
           </div>
           <button onClick={() => setIsSheetOpen(true)} className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 transition-all">
@@ -102,7 +105,7 @@ const Dashboard: React.FC = () => {
           <button onClick={prevMonth} className="p-2 text-slate-400 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-white font-semibold capitalize">{monthName}</span>
+          <span className="text-white font-semibold capitalize">{cycle.label}</span>
           <button onClick={nextMonth} className="p-2 text-slate-400 hover:text-white transition-colors">
             <ChevronRight className="w-5 h-5" />
           </button>

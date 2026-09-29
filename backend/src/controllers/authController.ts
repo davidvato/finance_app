@@ -28,7 +28,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const token = jwt.sign(
-      { id: user.id, role: user.role, must_change_password: user.must_change_password },
+      { id: user.id, role: user.role, must_change_password: user.must_change_password, budget_start_day: user.budget_start_day },
       process.env.JWT_SECRET as string,
       { expiresIn: '15m' } // Short lived, realistically would have refresh tokens
     );
@@ -46,7 +46,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         id: user.id,
         username: user.username,
         role: user.role,
-        must_change_password: user.must_change_password
+        must_change_password: user.must_change_password,
+        budget_start_day: user.budget_start_day
       }
     });
   } catch (error) {
@@ -85,7 +86,7 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
     
     // Regenerate token to update must_change_password claim
     const token = jwt.sign(
-      { id: req.user?.id, role: req.user?.role, must_change_password: false },
+      { id: req.user?.id, role: req.user?.role, must_change_password: false, budget_start_day: req.user?.budget_start_day },
       process.env.JWT_SECRET as string,
       { expiresIn: '15m' }
     );
@@ -103,3 +104,46 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { budget_start_day } = req.body;
+  
+  if (budget_start_day !== undefined && (budget_start_day < 1 || budget_start_day > 31)) {
+    res.status(400).json({ error: 'budget_start_day must be between 1 and 31' });
+    return;
+  }
+
+  try {
+    const result = await query(
+      'UPDATE users SET budget_start_day = COALESCE($1, budget_start_day) WHERE id = $2 RETURNING id, username, role, must_change_password, budget_start_day',
+      [budget_start_day, req.user?.id]
+    );
+    
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const updatedUser = result.rows[0];
+
+    // Regenerate token to include updated data
+    const token = jwt.sign(
+      { id: updatedUser.id, role: updatedUser.role, must_change_password: updatedUser.must_change_password, budget_start_day: updatedUser.budget_start_day },
+      process.env.JWT_SECRET as string,
+      { expiresIn: '15m' }
+    );
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+      maxAge: 15 * 60 * 1000
+    });
+
+    res.json({ message: 'Profile updated successfully', user: updatedUser });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+

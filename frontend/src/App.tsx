@@ -7,6 +7,7 @@ import Categories from './pages/Categories';
 import Budgets from './pages/Budgets';
 import Transactions from './pages/Transactions';
 import AdminPanel from './pages/AdminPanel';
+import Profile from './pages/Profile';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/budgets" element={<Budgets />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="/admin" element={<AdminPanel />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>

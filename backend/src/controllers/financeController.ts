@@ -209,9 +209,9 @@ export const setBudget = async (req: AuthRequest, res: Response): Promise<void> 
 };
 
 export const getBudgetSummary = async (req: AuthRequest, res: Response): Promise<void> => {
-  const { year_month } = req.query;
-  if (!year_month) {
-    res.status(400).json({ error: 'year_month is required (format YYYY-MM)' });
+  const { cycle_id, start_date, end_date } = req.query;
+  if (!cycle_id || !start_date || !end_date) {
+    res.status(400).json({ error: 'cycle_id, start_date, and end_date are required' });
     return;
   }
   try {
@@ -228,14 +228,15 @@ export const getBudgetSummary = async (req: AuthRequest, res: Response): Promise
         ON c.id = mb.category_id AND mb.year_month = $2 AND mb.user_id = $1
       LEFT JOIN transactions t 
         ON c.id = t.category_id 
-        AND TO_CHAR(t.transaction_date, 'YYYY-MM') = $2
+        AND t.transaction_date >= $3::date 
+        AND t.transaction_date <= $4::date
         AND t.user_id = $1
         AND t.deleted_at IS NULL
         AND t.type = 'EXPENSE'
       WHERE c.user_id = $1 AND c.deleted_at IS NULL AND c.type = 'EXPENSE'
       GROUP BY c.id, c.name, c.icon_name, c.color_hex, mb.limit_amount, c.budget_amount
       ORDER BY spent_amount DESC`,
-      [req.user?.id, year_month]
+      [req.user?.id, cycle_id, start_date, end_date]
     );
     res.json(result.rows);
   } catch (error) {

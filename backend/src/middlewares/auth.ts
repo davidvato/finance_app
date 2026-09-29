@@ -6,6 +6,7 @@ export interface AuthRequest extends Request {
     id: string;
     role: string;
     must_change_password?: boolean;
+    budget_start_day?: number;
   };
 }
 

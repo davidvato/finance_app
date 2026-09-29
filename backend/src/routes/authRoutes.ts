@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { login, logout, me, changePassword } from '../controllers/authController';
+import { login, logout, me, changePassword, updateProfile } from '../controllers/authController';
 import { verifyTurnstile } from '../middlewares/turnstile';
 import { authenticateJWT } from '../middlewares/auth';
 
@@ -18,5 +18,6 @@ router.post('/login', loginLimiter, verifyTurnstile, login);
 router.post('/logout', authenticateJWT, logout);
 router.get('/me', authenticateJWT, me);
 router.post('/change-password', authenticateJWT, changePassword);
+router.put('/profile', authenticateJWT, updateProfile);
 
 export default router;

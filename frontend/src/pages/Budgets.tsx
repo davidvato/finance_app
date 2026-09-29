@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Target, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
 import BottomNav from '../components/BottomNav';
+import { useAuth } from '../context/AuthContext';
+import { getCycleDates } from '../utils/dateUtils';
 
 interface BudgetSummary {
   category_id: string;
@@ -20,13 +22,14 @@ const Budgets: React.FC = () => {
   const [summaries, setSummaries] = useState<BudgetSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Formats '2026-09'
-  const yearMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  const { user } = useAuth();
+  const startDay = user?.budget_start_day || 1;
+  const cycle = getCycleDates(currentDate, startDay);
 
   const fetchSummary = async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(`/api/budgets/summary?year_month=${yearMonth}`, { withCredentials: true });
+      const res = await axios.get(`/api/budgets/summary?cycle_id=${cycle.cycleId}&start_date=${cycle.startDate}&end_date=${cycle.endDate}`, { withCredentials: true });
       setSummaries(res.data);
     } catch (err) {
       console.error(err);
@@ -37,12 +40,10 @@ const Budgets: React.FC = () => {
 
   useEffect(() => {
     fetchSummary();
-  }, [yearMonth]);
+  }, [cycle.cycleId, cycle.startDate, cycle.endDate]);
 
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-
-  const monthName = currentDate.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
 
   // Separate into those with budget and without
   const withBudget = summaries.filter(s => s.limit_amount !== null);
@@ -62,7 +63,7 @@ const Budgets: React.FC = () => {
           <button onClick={prevMonth} className="p-2 text-slate-400 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-white font-semibold capitalize">{monthName}</span>
+          <span className="text-white font-semibold capitalize">{cycle.label}</span>
           <button onClick={nextMonth} className="p-2 text-slate-400 hover:text-white transition-colors">
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -157,7 +158,7 @@ const Budgets: React.FC = () => {
         {!isLoading && summaries.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-center opacity-70">
             <Tag className="w-12 h-12 text-slate-600 mb-3" />
-            <p className="text-slate-300 font-medium">Sin datos en {monthName}</p>
+            <p className="text-slate-300 font-medium">Sin datos en {cycle.label}</p>
           </div>
         )}
       </div>

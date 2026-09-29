@@ -6,6 +6,7 @@ interface User {
   username: string;
   role: 'ADMIN' | 'USER';
   must_change_password: boolean;
+  budget_start_day: number;
 }
 
 interface AuthContextType {
