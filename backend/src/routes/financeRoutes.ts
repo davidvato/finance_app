@@ -1,14 +1,12 @@
 import { Router } from 'express';
-import { 
+import {
   getCategories, createCategory, updateCategory, deleteCategory,
-  getTransactions, createTransaction, syncTransactions,
+  getTransactions, createTransaction, updateTransaction, deleteTransaction, syncTransactions,
   getBudgets, setBudget
 } from '../controllers/financeController';
 import { authenticateJWT } from '../middlewares/auth';
 
 const router = Router();
-
-// Apply auth to all finance routes
 router.use(authenticateJWT);
 
 // Categories
@@ -20,6 +18,8 @@ router.delete('/categories/:id', deleteCategory);
 // Transactions
 router.get('/transactions', getTransactions);
 router.post('/transactions', createTransaction);
+router.put('/transactions/:id', updateTransaction);
+router.delete('/transactions/:id', deleteTransaction);
 router.post('/transactions/sync', syncTransactions);
 
 // Budgets

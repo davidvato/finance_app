@@ -16,6 +16,8 @@ interface Category {
   name: string;
   color_hex: string;
   icon_name: string;
+  type: 'EXPENSE' | 'INCOME';
+  budget_amount?: number | null;
 }
 
 interface Budget {

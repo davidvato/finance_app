@@ -1,21 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ArrowLeftRight, TrendingDown, TrendingUp, Plus } from 'lucide-react';
+import { Plus, SlidersHorizontal, TrendingDown, TrendingUp, ChevronDown, X } from 'lucide-react';
 import BottomNav from '../components/BottomNav';
-import AddTransactionSheet from '../components/AddTransactionSheet';
+import AddTransactionSheet, { type Transaction } from '../components/AddTransactionSheet';
 
-interface Category { id: string; name: string; color_hex: string; icon_name: string; }
-interface Transaction {
-  id: string; category_id: string; amount: string;
-  type: 'EXPENSE' | 'INCOME'; description: string; transaction_date: string;
+interface Category {
+  id: string;
+  name: string;
+  color_hex: string;
+  icon_name: string;
+  type: 'EXPENSE' | 'INCOME';
 }
+
+type FilterType = 'ALL' | 'EXPENSE' | 'INCOME';
 
 const Transactions: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [filterType, setFilterType] = useState<'ALL' | 'EXPENSE' | 'INCOME'>('ALL');
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [filterType, setFilterType] = useState<FilterType>('ALL');
+  const [filterCategoryId, setFilterCategoryId] = useState<string>('');
+  const [showCategoryFilter, setShowCategoryFilter] = useState(false);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -26,123 +33,220 @@ const Transactions: React.FC = () => {
       ]);
       setTransactions(txRes.data);
       setCategories(catRes.data);
-    } catch (err) { console.error(err); }
-    finally { setIsLoading(false); }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
 
-  const filtered = transactions.filter(tx => filterType === 'ALL' || tx.type === filterType);
+  const openNew = () => {
+    setEditingTransaction(null);
+    setIsSheetOpen(true);
+  };
+
+  const openEdit = (tx: Transaction) => {
+    setEditingTransaction(tx);
+    setIsSheetOpen(true);
+  };
+
+  // Filtering
+  const filtered = transactions.filter(tx => {
+    const typeMatch = filterType === 'ALL' || tx.type === filterType;
+    const catMatch = !filterCategoryId || tx.category_id === filterCategoryId;
+    return typeMatch && catMatch;
+  });
 
   // Group by date
-  const grouped = filtered.reduce((acc: Record<string, Transaction[]>, tx) => {
-    const dateKey = tx.transaction_date.slice(0, 10);
-    if (!acc[dateKey]) acc[dateKey] = [];
-    acc[dateKey].push(tx);
+  const grouped = filtered.reduce((acc, tx) => {
+    const day = tx.transaction_date?.split('T')[0] ?? 'Sin fecha';
+    if (!acc[day]) acc[day] = [];
+    acc[day].push(tx);
     return acc;
-  }, {});
+  }, {} as Record<string, Transaction[]>);
 
-  const sortedDates = Object.keys(grouped).sort((a, b) => (a < b ? 1 : -1));
+  const sortedDays = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+  const formatDate = (d: string) => {
+    if (d === 'Sin fecha') return d;
+    const date = new Date(d + 'T00:00:00');
+    return date.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
+  const formatAmount = (amount: string, type: string) => {
+    const num = parseFloat(amount);
+    const prefix = type === 'INCOME' ? '+' : '-';
+    return `${prefix}$${num.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const activeCategory = filterCategoryId ? categories.find(c => c.id === filterCategoryId) : null;
+
+  // Categories available for current type filter
+  const availableCatFilter = filterType === 'ALL'
+    ? categories
+    : categories.filter(c => c.type === filterType);
 
   return (
     <div className="min-h-screen bg-slate-900 pb-28">
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 px-5 pt-12 pb-6">
-        <h1 className="text-2xl font-bold text-white">Movimientos</h1>
-        <p className="text-slate-400 text-xs mt-1">Historial completo de transacciones</p>
-      </div>
-
-      {/* Filter tabs */}
-      <div className="flex bg-slate-800/60 mx-4 rounded-xl p-1 mt-4 gap-1">
-        {(['ALL', 'EXPENSE', 'INCOME'] as const).map((f) => (
+      {/* Header */}
+      <div className="bg-gradient-to-br from-slate-800 to-slate-900 px-5 pt-12 pb-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Movimientos</h1>
+            <p className="text-slate-400 text-xs mt-1">{filtered.length} registros</p>
+          </div>
           <button
-            key={f} onClick={() => setFilterType(f)}
-            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
-              filterType === f
-                ? f === 'EXPENSE' ? 'bg-red-500/90 text-white' : f === 'INCOME' ? 'bg-emerald-500/90 text-white' : 'bg-slate-600 text-white'
-                : 'text-slate-400 hover:text-white'
-            }`}
+            id="btn-new-transaction"
+            onClick={openNew}
+            className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 transition-all active:scale-95"
           >
-            {f === 'ALL' ? 'Todos' : f === 'EXPENSE' ? 'Gastos' : 'Ingresos'}
+            <Plus className="w-5 h-5 text-white" strokeWidth={2.5} />
           </button>
-        ))}
+        </div>
+
+        {/* Type Tabs */}
+        <div className="flex gap-2 bg-slate-800/60 p-1 rounded-xl mb-3">
+          {(['ALL', 'EXPENSE', 'INCOME'] as FilterType[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => { setFilterType(f); setFilterCategoryId(''); }}
+              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${filterType === f ? 'bg-emerald-500 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              {f === 'ALL' ? 'Todos' : f === 'EXPENSE' ? 'Gastos' : 'Ingresos'}
+            </button>
+          ))}
+        </div>
+
+        {/* Category filter pill */}
+        <div className="relative">
+          <button
+            onClick={() => setShowCategoryFilter(!showCategoryFilter)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all ${filterCategoryId ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300' : 'bg-slate-800/80 border border-slate-700/40 text-slate-400'}`}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            <span>{activeCategory ? `${activeCategory.icon_name} ${activeCategory.name}` : 'Todas las categorías'}</span>
+            <ChevronDown className={`w-3 h-3 transition-transform ${showCategoryFilter ? 'rotate-180' : ''}`} />
+            {filterCategoryId && (
+              <span
+                onClick={(e) => { e.stopPropagation(); setFilterCategoryId(''); }}
+                className="ml-1 text-emerald-400 hover:text-white"
+              >
+                <X className="w-3 h-3" />
+              </span>
+            )}
+          </button>
+
+          {showCategoryFilter && (
+            <div className="absolute top-10 left-0 z-30 bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-2 min-w-[200px] max-h-60 overflow-y-auto">
+              <button
+                onClick={() => { setFilterCategoryId(''); setShowCategoryFilter(false); }}
+                className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all ${!filterCategoryId ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-300 hover:bg-slate-700'}`}
+              >
+                Todas las categorías
+              </button>
+              {availableCatFilter.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => { setFilterCategoryId(cat.id); setShowCategoryFilter(false); }}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all ${filterCategoryId === cat.id ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-300 hover:bg-slate-700'}`}
+                >
+                  <span>{cat.icon_name}</span>
+                  <span>{cat.name}</span>
+                  <span className={`ml-auto text-xs px-1.5 py-0.5 rounded-full ${cat.type === 'INCOME' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {cat.type === 'INCOME' ? '↑' : '↓'}
+                  </span>
+                </button>
+              ))}
+              {availableCatFilter.length === 0 && (
+                <p className="text-slate-500 text-xs px-3 py-2">Sin categorías para este filtro</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="px-4 mt-4 space-y-6">
+      {/* Transaction list */}
+      <div className="px-4 mt-3 space-y-5">
         {isLoading ? (
-          [...Array(4)].map((_, i) => (
-            <div key={i} className="animate-pulse flex items-center gap-3">
-              <div className="w-11 h-11 bg-slate-800 rounded-xl flex-shrink-0" />
+          [...Array(5)].map((_, i) => (
+            <div key={i} className="animate-pulse flex items-center gap-3 bg-slate-800/60 rounded-2xl p-4">
+              <div className="w-12 h-12 bg-slate-700 rounded-xl" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 bg-slate-800 rounded w-2/3" />
-                <div className="h-2 bg-slate-800/60 rounded w-1/3" />
+                <div className="h-4 bg-slate-700 rounded w-1/2" />
+                <div className="h-3 bg-slate-700 rounded w-1/3" />
               </div>
-              <div className="h-4 bg-slate-800 rounded w-16" />
+              <div className="h-5 bg-slate-700 rounded w-20" />
             </div>
           ))
-        ) : sortedDates.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <ArrowLeftRight className="w-12 h-12 text-slate-600 mb-3" />
+        ) : sortedDays.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
+              <SlidersHorizontal className="w-8 h-8 text-slate-600" />
+            </div>
             <p className="text-slate-400 font-medium">Sin movimientos</p>
-            <p className="text-slate-600 text-sm mt-1">Agrega tu primer movimiento con el botón +.</p>
+            <p className="text-slate-600 text-sm mt-1">
+              {filterCategoryId || filterType !== 'ALL' ? 'Prueba cambiando los filtros.' : 'Toca el + para registrar tu primer movimiento.'}
+            </p>
           </div>
         ) : (
-          sortedDates.map((dateKey) => (
-            <div key={dateKey}>
-              <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-3">
-                {new Date(dateKey + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
+          sortedDays.map(day => (
+            <div key={day}>
+              <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-2 capitalize px-1">
+                {formatDate(day)}
               </p>
-              <div className="space-y-3">
-                {grouped[dateKey].map((tx) => {
-                  const cat = categories.find(c => c.id === tx.category_id);
-                  return (
-                    <div key={tx.id} className="flex items-center gap-3 bg-slate-800/60 border border-slate-700/30 rounded-2xl px-4 py-3">
-                      <div
-                        className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                        style={{ backgroundColor: (cat?.color_hex || '#475569') + '25' }}
-                      >
-                        {cat?.icon_name || (tx.type === 'INCOME' ? '💰' : '💸')}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium truncate">
-                          {tx.description || cat?.name || 'Sin descripción'}
-                        </p>
-                        {cat && <p className="text-slate-500 text-xs mt-0.5">{cat.name}</p>}
-                      </div>
-                      <div className="flex flex-col items-end flex-shrink-0">
-                        <p className={`text-sm font-bold ${tx.type === 'INCOME' ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {tx.type === 'INCOME' ? '+' : '-'}${parseFloat(tx.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                        </p>
-                        <div className={`flex items-center gap-1 mt-0.5`}>
-                          {tx.type === 'INCOME'
-                            ? <TrendingUp className="w-3 h-3 text-emerald-500/70" />
-                            : <TrendingDown className="w-3 h-3 text-red-500/70" />}
-                          <span className="text-slate-600 text-[10px]">{tx.type === 'INCOME' ? 'Ingreso' : 'Gasto'}</span>
-                        </div>
-                      </div>
+              <div className="space-y-2">
+                {grouped[day].map(tx => (
+                  <button
+                    key={tx.id}
+                    onClick={() => openEdit(tx)}
+                    className="w-full flex items-center gap-3 bg-slate-800/60 border border-slate-700/40 rounded-2xl p-4 hover:bg-slate-800 hover:border-slate-600 transition-all active:scale-[0.98] text-left"
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+                      style={{ backgroundColor: (tx.category_color || '#64748b') + '25' }}
+                    >
+                      {tx.category_icon || '💸'}
                     </div>
-                  );
-                })}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-semibold truncate">{tx.description || tx.category_name || 'Sin descripción'}</p>
+                      <p className="text-slate-500 text-xs mt-0.5 truncate">
+                        {tx.category_icon && tx.category_name ? `${tx.category_icon} ${tx.category_name}` : 'Sin categoría'}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end flex-shrink-0">
+                      <span className={`font-bold ${tx.type === 'INCOME' ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {formatAmount(tx.amount, tx.type)}
+                      </span>
+                      <span className="mt-1">
+                        {tx.type === 'INCOME'
+                          ? <TrendingUp className="w-3.5 h-3.5 text-emerald-500/60" />
+                          : <TrendingDown className="w-3.5 h-3.5 text-red-500/60" />
+                        }
+                      </span>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
           ))
         )}
       </div>
 
-      {/* FAB */}
-      <button
-        onClick={() => setIsSheetOpen(true)}
-        className="fixed bottom-20 right-5 z-40 w-14 h-14 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-full flex items-center justify-center shadow-2xl shadow-emerald-500/40 hover:scale-110 active:scale-95 transition-transform"
-        aria-label="Agregar movimiento"
-      >
-        <Plus className="w-7 h-7 text-white" strokeWidth={2.5} />
-      </button>
+      {/* Click outside to close category dropdown */}
+      {showCategoryFilter && (
+        <div className="fixed inset-0 z-20" onClick={() => setShowCategoryFilter(false)} />
+      )}
 
       <AddTransactionSheet
         isOpen={isSheetOpen}
-        onClose={() => setIsSheetOpen(false)}
+        onClose={() => { setIsSheetOpen(false); setEditingTransaction(null); }}
         categories={categories}
         onSuccess={fetchData}
+        editingTransaction={editingTransaction}
       />
+
       <BottomNav />
     </div>
   );
