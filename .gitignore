@@ -1,0 +1,15 @@
+# Node modules and build
+node_modules/
+dist/
+.env
+
+# Vite
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
