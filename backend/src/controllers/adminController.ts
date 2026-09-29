@@ -2,7 +2,6 @@ import { Response } from 'express';
 import * as argon2 from 'argon2';
 import { query } from '../db';
 import { AuthRequest } from '../middlewares/auth';
-import { v4 as uuidv4 } from 'uuid';
 
 export const getUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -27,7 +26,7 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const result = await query(
       'INSERT INTO users (id, username, email, password_hash, role, must_change_password) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, email, role',
-      [uuidv4(), username, email, passwordHash, role, true] // Force change password on first login
+      [crypto.randomUUID(), username, email, passwordHash, role, true]
     );
     res.status(201).json(result.rows[0]);
   } catch (error: any) {

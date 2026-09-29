@@ -1,7 +1,6 @@
 import { Response } from 'express';
 import { query } from '../db';
 import { AuthRequest } from '../middlewares/auth';
-import { v4 as uuidv4 } from 'uuid';
 
 // Categories
 export const getCategories = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -19,7 +18,7 @@ export const createCategory = async (req: AuthRequest, res: Response): Promise<v
   try {
     const result = await query(
       'INSERT INTO categories (id, user_id, name, color_hex, icon_name) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [uuidv4(), req.user?.id, name, color_hex, icon_name]
+      [crypto.randomUUID(), req.user?.id, name, color_hex, icon_name]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -127,7 +126,7 @@ export const setBudget = async (req: AuthRequest, res: Response): Promise<void> 
        ON CONFLICT (user_id, category_id, year_month) 
        DO UPDATE SET limit_amount = $5, updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
-      [uuidv4(), req.user?.id, category_id, year_month, limit_amount]
+      [crypto.randomUUID(), req.user?.id, category_id, year_month, limit_amount]
     );
     res.json(result.rows[0]);
   } catch (error) {

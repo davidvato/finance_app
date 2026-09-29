@@ -1,0 +1,15 @@
+{
+  "testEnvironment": "node",
+  "testMatch": ["**/__tests__/**/*.test.ts"],
+  "moduleFileExtensions": ["ts", "js", "mjs", "json"],
+  "extensionsToTreatAsEsm": [],
+  "transform": {
+    "^.+\\.ts$": ["esbuild-jest", { "sourcemap": true, "format": "cjs" }],
+    "^.+\\.mjs$": ["esbuild-jest", { "sourcemap": true, "format": "cjs" }]
+  },
+  "transformIgnorePatterns": [
+    "node_modules/(?!(uuid)/)"
+  ],
+  "forceExit": true,
+  "detectOpenHandles": true
+}
