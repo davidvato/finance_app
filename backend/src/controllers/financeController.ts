@@ -207,3 +207,39 @@ export const setBudget = async (req: AuthRequest, res: Response): Promise<void> 
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const getBudgetSummary = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { year_month } = req.query;
+  if (!year_month) {
+    res.status(400).json({ error: 'year_month is required (format YYYY-MM)' });
+    return;
+  }
+  try {
+    const result = await query(
+      `SELECT 
+        c.id as category_id,
+        c.name as category_name,
+        c.icon_name,
+        c.color_hex,
+        COALESCE(mb.limit_amount, c.budget_amount) as limit_amount,
+        COALESCE(SUM(t.amount), 0) as spent_amount
+      FROM categories c
+      LEFT JOIN monthly_budgets mb 
+        ON c.id = mb.category_id AND mb.year_month = $2 AND mb.user_id = $1
+      LEFT JOIN transactions t 
+        ON c.id = t.category_id 
+        AND TO_CHAR(t.transaction_date, 'YYYY-MM') = $2
+        AND t.user_id = $1
+        AND t.deleted_at IS NULL
+        AND t.type = 'EXPENSE'
+      WHERE c.user_id = $1 AND c.deleted_at IS NULL AND c.type = 'EXPENSE'
+      GROUP BY c.id, c.name, c.icon_name, c.color_hex, mb.limit_amount, c.budget_amount
+      ORDER BY spent_amount DESC`,
+      [req.user?.id, year_month]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import {
   getCategories, createCategory, updateCategory, deleteCategory,
   getTransactions, createTransaction, updateTransaction, deleteTransaction, syncTransactions,
-  getBudgets, setBudget
+  getBudgets, setBudget, getBudgetSummary
 } from '../controllers/financeController';
 import { authenticateJWT } from '../middlewares/auth';
 
@@ -23,6 +23,7 @@ router.delete('/transactions/:id', deleteTransaction);
 router.post('/transactions/sync', syncTransactions);
 
 // Budgets
+router.get('/budgets/summary', getBudgetSummary);
 router.get('/budgets', getBudgets);
 router.post('/budgets', setBudget);
 
