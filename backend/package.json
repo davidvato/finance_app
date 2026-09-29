@@ -32,13 +32,11 @@
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
     "@types/uuid": "^10.0.0",
-    "@typescript/typescript6": "^6.0.2",
     "esbuild": "^0.28.2",
     "esbuild-jest": "^0.5.0",
     "jest": "^30.5.2",
     "nodemon": "^3.1.14",
     "supertest": "^7.3.0",
-    "ts-jest": "^29.4.14",
     "ts-node": "^10.9.2",
     "typescript": "^7.0.2"
   }
