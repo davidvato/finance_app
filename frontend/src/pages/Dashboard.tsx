@@ -3,7 +3,7 @@ import axios from 'axios';
 import { TrendingDown, TrendingUp, Wallet, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import BottomNav from '../components/BottomNav';
-import AddTransactionSheet from '../components/AddTransactionSheet';
+import AddTransactionSheet, { type Account } from '../components/AddTransactionSheet';
 import { useAuth } from '../context/AuthContext';
 import { getCycleDates } from '../utils/dateUtils';
 import { useNavigate } from 'react-router-dom';
@@ -41,6 +41,7 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summaries, setSummaries] = useState<BudgetSummary[]>([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -54,14 +55,16 @@ const Dashboard: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const [catRes, txRes, sumRes] = await Promise.all([
+      const [catRes, txRes, sumRes, accRes] = await Promise.all([
         axios.get('/api/categories', { withCredentials: true }),
         axios.get('/api/transactions', { withCredentials: true }),
         axios.get(`/api/budgets/summary?cycle_id=${cycle.cycleId}&start_date=${cycle.startDate}&end_date=${cycle.endDate}`, { withCredentials: true }),
+        axios.get('/api/accounts', { withCredentials: true }),
       ]);
       setCategories(catRes.data);
       setTransactions(txRes.data);
       setSummaries(sumRes.data);
+      setAccounts(accRes.data);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
     }
@@ -274,6 +277,7 @@ const Dashboard: React.FC = () => {
         isOpen={isSheetOpen}
         onClose={() => setIsSheetOpen(false)}
         categories={categories}
+        accounts={accounts}
         onSuccess={fetchData}
       />
       <BottomNav />
