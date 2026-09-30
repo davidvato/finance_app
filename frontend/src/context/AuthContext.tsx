@@ -28,8 +28,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const logout = async () => {
-    await axios.post('/api/auth/logout', {}, { withCredentials: true });
-    setUser(null);
+    try {
+      await axios.post('/api/auth/logout', {}, { withCredentials: true });
+    } catch (error) {
+      console.warn('Logout API failed or token already expired', error);
+    } finally {
+      setUser(null);
+    }
   };
 
   return (

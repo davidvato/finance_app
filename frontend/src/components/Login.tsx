@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Turnstile } from '@marsidev/react-turnstile';
 import axios from 'axios';
 import { Wallet, Lock, User, AlertCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 axios.defaults.withCredentials = true;
 
@@ -13,6 +14,7 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { setUser } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +32,8 @@ const Login: React.FC = () => {
         password,
         'cf-turnstile-response': turnstileToken,
       });
+
+      setUser(response.data.user);
 
       if (response.data.user.must_change_password) {
         navigate('/change-password');

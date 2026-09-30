@@ -17,6 +17,15 @@ interface Category {
   budget_amount?: number | null;
 }
 
+interface BudgetSummary {
+  category_id: string;
+  category_name: string;
+  icon_name: string;
+  color_hex: string;
+  limit_amount: string | null;
+  spent_amount: string;
+}
+
 interface Transaction {
   id: string;
   category_id: string;
@@ -33,6 +42,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [summaries, setSummaries] = useState<BudgetSummary[]>([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState(() => {
     const d = new Date();
@@ -44,12 +54,14 @@ const Dashboard: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const [catRes, txRes] = await Promise.all([
+      const [catRes, txRes, sumRes] = await Promise.all([
         axios.get('/api/categories', { withCredentials: true }),
         axios.get('/api/transactions', { withCredentials: true }),
+        axios.get(`/api/budgets/summary?cycle_id=${cycle.cycleId}&start_date=${cycle.startDate}&end_date=${cycle.endDate}`, { withCredentials: true }),
       ]);
       setCategories(catRes.data);
       setTransactions(txRes.data);
+      setSummaries(sumRes.data);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
     }
@@ -57,7 +69,7 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [cycle.cycleId]);
+  }, [cycle.cycleId, cycle.startDate, cycle.endDate]);
 
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
@@ -72,6 +84,8 @@ const Dashboard: React.FC = () => {
   const income = monthlyTx.filter(t => t.type === 'INCOME').reduce((acc, t) => acc + parseFloat(t.amount), 0);
   const balance = income - expenses;
 
+  const withBudget = summaries.filter(s => s.limit_amount !== null);
+
   // Data for Donut Chart
   const expensesByCategory = monthlyTx
     .filter(t => t.type === 'EXPENSE')
@@ -84,7 +98,17 @@ const Dashboard: React.FC = () => {
       return acc;
     }, {} as Record<string, { name: string; value: number; color: string }>);
 
-  const chartData = Object.values(expensesByCategory).sort((a, b) => b.value - a.value);
+  const CHART_COLORS = [
+    '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444',
+    '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16'
+  ];
+
+  const chartData = Object.values(expensesByCategory)
+    .sort((a, b) => b.value - a.value)
+    .map((item, index) => ({
+      ...item,
+      color: CHART_COLORS[index % CHART_COLORS.length]
+    }));
 
   return (
     <div className="min-h-screen bg-slate-900 pb-28">
@@ -116,7 +140,7 @@ const Dashboard: React.FC = () => {
           <h2 className={`text-4xl font-bold ${balance >= 0 ? 'text-white' : 'text-red-400'}`}>
             ${balance.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </h2>
-          
+
           <div className="flex gap-4 mt-6">
             <div className="flex-1 bg-emerald-500/10 rounded-xl p-3 border border-emerald-500/20">
               <div className="flex items-center gap-2 mb-1">
@@ -164,7 +188,7 @@ const Dashboard: React.FC = () => {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip 
+                      <Tooltip
                         formatter={(value: any) => `$${Number(value).toLocaleString('es-MX')}`}
                         contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff' }}
                         itemStyle={{ color: '#e2e8f0' }}
@@ -174,12 +198,13 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className="mt-4 space-y-2">
                   {chartData.slice(0, 4).map((d) => (
-                    <div key={d.name} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
+                    <div key={d.name} className="flex items-center text-sm w-full">
+                      <div className="flex items-center gap-2 shrink-0">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
                         <span className="text-slate-300">{d.name}</span>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex-grow border-b border-dotted border-slate-600 mx-3 relative top-[-4px]"></div>
+                      <div className="flex items-center gap-3 shrink-0">
                         <span className="text-white font-semibold">${d.value.toLocaleString('es-MX')}</span>
                         <span className="text-slate-500 text-xs w-8 text-right">{Math.round((d.value / expenses) * 100)}%</span>
                       </div>
@@ -198,6 +223,51 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Budgets Section */}
+        {withBudget.length > 0 && (
+          <div>
+            <h3 className="text-white font-semibold mb-4 text-lg">Estado de Presupuestos</h3>
+            <div className="space-y-4">
+              {withBudget.map(cat => {
+                const spent = parseFloat(cat.spent_amount);
+                const limit = parseFloat(cat.limit_amount!);
+                const percentage = Math.min((spent / limit) * 100, 100);
+                const isOver = spent > limit;
+                const remaining = limit - spent;
+
+                return (
+                  <div key={cat.category_id} className="bg-slate-800/60 border border-slate-700/40 rounded-2xl p-4">
+                    <div className="flex justify-between items-end mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ backgroundColor: cat.color_hex + '25' }}>
+                          {cat.icon_name}
+                        </div>
+                        <div>
+                          <p className="text-white font-semibold">{cat.category_name}</p>
+                          <p className={`text-xs font-medium mt-0.5 ${isOver ? 'text-red-400' : 'text-slate-400'}`}>
+                            {isOver ? `Excedido $${Math.abs(remaining).toLocaleString('es-MX')}` : `Quedan $${remaining.toLocaleString('es-MX')}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-white font-bold">${spent.toLocaleString('es-MX')}</p>
+                        <p className="text-slate-500 text-xs">de ${limit.toLocaleString('es-MX')}</p>
+                      </div>
+                    </div>
+
+                    <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${isOver ? 'bg-red-500' : percentage > 80 ? 'bg-amber-400' : 'bg-emerald-500'}`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       <AddTransactionSheet
