@@ -170,16 +170,16 @@ const Dashboard: React.FC = () => {
           <h3 className="text-white font-semibold mb-4 text-lg">Distribución de Gastos</h3>
           <div className="bg-slate-800/50 border border-slate-700/40 rounded-3xl p-5">
             {chartData.length > 0 ? (
-              <>
-                <div className="h-48 w-full">
+              <div className="flex flex-col md:flex-row items-center gap-6">
+                <div className="h-36 w-full md:w-1/3">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={chartData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
+                        innerRadius={50}
+                        outerRadius={70}
                         paddingAngle={5}
                         dataKey="value"
                         stroke="none"
@@ -196,7 +196,7 @@ const Dashboard: React.FC = () => {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="mt-4 space-y-2">
+                <div className="w-full md:w-2/3 space-y-2">
                   {chartData.slice(0, 4).map((d) => (
                     <div key={d.name} className="flex items-center text-sm w-full">
                       <div className="flex items-center gap-2 shrink-0">
@@ -211,10 +211,10 @@ const Dashboard: React.FC = () => {
                     </div>
                   ))}
                   {chartData.length > 4 && (
-                    <p className="text-center text-xs text-slate-500 mt-3 font-medium cursor-pointer">Ver {chartData.length - 4} más...</p>
+                    <p className="text-center md:text-left text-xs text-slate-500 mt-3 font-medium cursor-pointer">Ver {chartData.length - 4} más...</p>
                   )}
                 </div>
-              </>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center opacity-70">
                 <Wallet className="w-12 h-12 text-slate-600 mb-3" />
