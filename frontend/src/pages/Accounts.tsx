@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ArrowLeft, Wallet, Plus, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Wallet, Plus, X, Trash2, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface Account {
@@ -22,6 +22,7 @@ const Accounts: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
 
   // Form State
   const [name, setName] = useState('');
@@ -45,10 +46,18 @@ const Accounts: React.FC = () => {
     fetchAccounts();
   }, []);
 
-  const handleOpenModal = () => {
-    setName('');
-    setType('BANK');
-    setBalance('');
+  const handleOpenModal = (account?: Account) => {
+    if (account) {
+      setEditingAccount(account);
+      setName(account.name);
+      setType(account.type);
+      setBalance(account.balance);
+    } else {
+      setEditingAccount(null);
+      setName('');
+      setType('BANK');
+      setBalance('');
+    }
     setError('');
     setIsModalOpen(true);
   };
@@ -64,11 +73,19 @@ const Accounts: React.FC = () => {
     setError('');
     
     try {
-      await axios.post('/api/accounts', {
-        name,
-        type,
-        balance: balance ? parseFloat(balance).toFixed(2) : 0,
-      }, { withCredentials: true });
+      if (editingAccount) {
+        await axios.put(`/api/accounts/${editingAccount.id}`, {
+          name,
+          type,
+          balance: balance ? parseFloat(balance).toFixed(2) : 0,
+        }, { withCredentials: true });
+      } else {
+        await axios.post('/api/accounts', {
+          name,
+          type,
+          balance: balance ? parseFloat(balance).toFixed(2) : 0,
+        }, { withCredentials: true });
+      }
       
       setIsModalOpen(false);
       fetchAccounts();
@@ -101,7 +118,7 @@ const Accounts: React.FC = () => {
             </button>
             <h1 className="text-2xl font-bold text-white">Mis Cuentas</h1>
           </div>
-          <button onClick={handleOpenModal} className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 transition-all">
+          <button onClick={() => handleOpenModal()} className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 transition-all">
             <Plus className="w-5 h-5 text-white" />
           </button>
         </div>
@@ -128,7 +145,7 @@ const Accounts: React.FC = () => {
           ) : accounts.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-slate-400">No tienes cuentas registradas.</p>
-              <button onClick={handleOpenModal} className="text-emerald-400 mt-2 font-medium">Agregar mi primera cuenta</button>
+              <button onClick={() => handleOpenModal()} className="text-emerald-400 mt-2 font-medium">Agregar mi primera cuenta</button>
             </div>
           ) : (
             accounts.map(acc => (
@@ -146,9 +163,14 @@ const Accounts: React.FC = () => {
                   <p className={`font-bold text-lg ${parseFloat(acc.balance) >= 0 ? 'text-white' : 'text-red-400'}`}>
                     ${Number(acc.balance).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                   </p>
-                  <button onClick={() => handleDelete(acc.id)} className="text-slate-500 hover:text-red-400 p-1 mt-1">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={() => handleOpenModal(acc)} className="text-slate-500 hover:text-emerald-400 p-1">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(acc.id)} className="text-slate-500 hover:text-red-400 p-1">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))
@@ -162,7 +184,7 @@ const Accounts: React.FC = () => {
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
           <div className="relative bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-sm animate-slide-up">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-xl font-bold text-white">Nueva Cuenta</h3>
+              <h3 className="text-xl font-bold text-white">{editingAccount ? 'Editar Cuenta' : 'Nueva Cuenta'}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
@@ -222,7 +244,7 @@ const Accounts: React.FC = () => {
                 disabled={isSubmitting}
                 className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 rounded-xl mt-2 transition-all disabled:opacity-50"
               >
-                {isSubmitting ? 'Guardando...' : 'Crear Cuenta'}
+                {isSubmitting ? 'Guardando...' : editingAccount ? 'Guardar Cambios' : 'Crear Cuenta'}
               </button>
             </form>
           </div>
