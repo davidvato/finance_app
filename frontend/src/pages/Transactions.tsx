@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, SlidersHorizontal, TrendingDown, TrendingUp, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import BottomNav from '../components/BottomNav';
-import AddTransactionSheet, { type Transaction } from '../components/AddTransactionSheet';
+import AddTransactionSheet, { type Transaction, type Account } from '../components/AddTransactionSheet';
 import { useAuth } from '../context/AuthContext';
 import { getCycleDates } from '../utils/dateUtils';
 
@@ -16,17 +16,12 @@ interface Category {
 
 type FilterType = 'ALL' | 'EXPENSE' | 'INCOME';
 
-const PAYMENT_METHOD_BADGE: Record<string, { emoji: string; label: string }> = {
-  CASH: { emoji: '💵', label: 'Efectivo' },
-  CREDIT_CARD: { emoji: '💳', label: 'Crédito' },
-  DEBIT_CARD: { emoji: '🏧', label: 'Débito' },
-  TRANSFER: { emoji: '🏦', label: 'Transferencia' },
-};
 
 const Transactions: React.FC = () => {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -45,12 +40,14 @@ const Transactions: React.FC = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [txRes, catRes] = await Promise.all([
+      const [txRes, catRes, accRes] = await Promise.all([
         axios.get('/api/transactions', { withCredentials: true }),
         axios.get('/api/categories', { withCredentials: true }),
+        axios.get('/api/accounts', { withCredentials: true }),
       ]);
       setTransactions(txRes.data);
       setCategories(catRes.data);
+      setAccounts(accRes.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -249,12 +246,17 @@ const Transactions: React.FC = () => {
                         <p className="text-slate-500 text-xs truncate">
                           {tx.category_icon && tx.category_name ? `${tx.category_icon} ${tx.category_name}` : 'Sin categoría'}
                         </p>
-                        {tx.payment_method && PAYMENT_METHOD_BADGE[tx.payment_method] && (
-                          <span className="flex-shrink-0 flex items-center gap-0.5 text-xs text-slate-500 bg-slate-700/60 px-1.5 py-0.5 rounded-full">
-                            <span>{PAYMENT_METHOD_BADGE[tx.payment_method].emoji}</span>
-                            <span>{PAYMENT_METHOD_BADGE[tx.payment_method].label}</span>
+                        {tx.type === 'TRANSFER' ? (
+                          <span className="flex-shrink-0 flex items-center gap-0.5 text-xs text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-full border border-blue-500/20">
+                            <span>🏦</span>
+                            <span>{tx.account_name} ➔ {tx.destination_account_name}</span>
                           </span>
-                        )}
+                        ) : tx.account_name ? (
+                          <span className="flex-shrink-0 flex items-center gap-0.5 text-xs text-slate-400 bg-slate-700/60 px-1.5 py-0.5 rounded-full">
+                            <span>💳</span>
+                            <span>{tx.account_name}</span>
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                     <div className="flex flex-col items-end flex-shrink-0">
@@ -285,6 +287,7 @@ const Transactions: React.FC = () => {
         isOpen={isSheetOpen}
         onClose={() => { setIsSheetOpen(false); setEditingTransaction(null); }}
         categories={categories}
+        accounts={accounts}
         onSuccess={fetchData}
         editingTransaction={editingTransaction}
       />

@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
 import financeRoutes from './routes/financeRoutes';
+import accountRoutes from './routes/accountRoutes';
 
 const createApp = () => {
   const app = express();
@@ -17,6 +18,7 @@ const createApp = () => {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/accounts', accountRoutes);
   app.use('/api', financeRoutes);
 
   // Global Error Handler

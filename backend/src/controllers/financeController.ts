@@ -76,9 +76,13 @@ export const deleteCategory = async (req: AuthRequest, res: Response): Promise<v
 export const getTransactions = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const result = await query(
-      `SELECT t.*, c.name as category_name, c.icon_name as category_icon, c.color_hex as category_color, c.type as category_type
+      `SELECT t.*, 
+        c.name as category_name, c.icon_name as category_icon, c.color_hex as category_color, c.type as category_type,
+        a1.name as account_name, a2.name as destination_account_name
        FROM transactions t
        LEFT JOIN categories c ON t.category_id = c.id
+       LEFT JOIN accounts a1 ON t.account_id = a1.id
+       LEFT JOIN accounts a2 ON t.destination_account_id = a2.id
        WHERE t.user_id = $1 AND t.deleted_at IS NULL
        ORDER BY t.transaction_date DESC, t.created_at DESC`,
       [req.user?.id]
@@ -90,17 +94,15 @@ export const getTransactions = async (req: AuthRequest, res: Response): Promise<
 };
 
 export const createTransaction = async (req: AuthRequest, res: Response): Promise<void> => {
-  const { id, category_id, amount, type, description, transaction_date, payment_method } = req.body;
+  const { id, category_id, account_id, destination_account_id, amount, type, description, transaction_date } = req.body;
   const txId = id || crypto.randomUUID();
-  const validMethods = ['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'TRANSFER'];
-  const method = validMethods.includes(payment_method) ? payment_method : 'CASH';
   try {
     const result = await query(
-      `INSERT INTO transactions (id, user_id, category_id, amount, type, description, transaction_date, payment_method)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO transactions (id, user_id, category_id, account_id, destination_account_id, amount, type, description, transaction_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (id) DO NOTHING
        RETURNING *`,
-      [txId, req.user?.id, category_id, amount, type, description, transaction_date, method]
+      [txId, req.user?.id, category_id, account_id, destination_account_id || null, amount, type, description, transaction_date]
     );
     if (result.rows.length === 0) {
       res.status(200).json({ message: 'Transaction already synced' }); return;
@@ -113,22 +115,21 @@ export const createTransaction = async (req: AuthRequest, res: Response): Promis
 
 export const updateTransaction = async (req: AuthRequest, res: Response): Promise<void> => {
   const { id } = req.params;
-  const { category_id, amount, type, description, transaction_date, payment_method } = req.body;
-  const validMethods = ['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'TRANSFER'];
-  const method = payment_method && validMethods.includes(payment_method) ? payment_method : null;
+  const { category_id, account_id, destination_account_id, amount, type, description, transaction_date } = req.body;
   try {
     const result = await query(
       `UPDATE transactions
        SET category_id = COALESCE($1, category_id),
-           amount = COALESCE($2, amount),
-           type = COALESCE($3, type),
-           description = COALESCE($4, description),
-           transaction_date = COALESCE($5, transaction_date),
-           payment_method = COALESCE($6, payment_method),
+           account_id = COALESCE($2, account_id),
+           destination_account_id = COALESCE($3, destination_account_id),
+           amount = COALESCE($4, amount),
+           type = COALESCE($5, type),
+           description = COALESCE($6, description),
+           transaction_date = COALESCE($7, transaction_date),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7 AND user_id = $8 AND deleted_at IS NULL
+       WHERE id = $8 AND user_id = $9 AND deleted_at IS NULL
        RETURNING *`,
-      [category_id, amount, type, description, transaction_date, method, id, req.user?.id]
+      [category_id, account_id, destination_account_id, amount, type, description, transaction_date, id, req.user?.id]
     );
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Transaction not found' }); return;
@@ -160,17 +161,15 @@ export const syncTransactions = async (req: AuthRequest, res: Response): Promise
   if (!Array.isArray(transactions)) {
     res.status(400).json({ error: 'Invalid payload' }); return;
   }
-  const validMethods = ['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'TRANSFER'];
   try {
     const synced = [];
     for (const tx of transactions) {
-      const method = validMethods.includes(tx.payment_method) ? tx.payment_method : 'CASH';
       const result = await query(
-        `INSERT INTO transactions (id, user_id, category_id, amount, type, description, transaction_date, payment_method)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO transactions (id, user_id, category_id, account_id, destination_account_id, amount, type, description, transaction_date)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (id) DO NOTHING
          RETURNING id`,
-        [tx.id, req.user?.id, tx.category_id, tx.amount, tx.type, tx.description, tx.transaction_date, method]
+        [tx.id, req.user?.id, tx.category_id, tx.account_id, tx.destination_account_id || null, tx.amount, tx.type, tx.description, tx.transaction_date]
       );
       if (result.rows.length > 0) synced.push(tx.id);
     }

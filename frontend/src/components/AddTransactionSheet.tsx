@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, Tag, FileText, CalendarDays, Trash2, Wallet } from 'lucide-react';
+import { X, Tag, FileText, CalendarDays, Trash2, Wallet, ArrowRight } from 'lucide-react';
 import axios from 'axios';
 
-type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'TRANSFER';
-
-const PAYMENT_METHODS: { value: PaymentMethod; label: string; emoji: string }[] = [
-  { value: 'CASH', label: 'Efectivo', emoji: '💵' },
-  { value: 'CREDIT_CARD', label: 'Tarjeta de Crédito', emoji: '💳' },
-  { value: 'DEBIT_CARD', label: 'Tarjeta de Débito', emoji: '🏧' },
-  { value: 'TRANSFER', label: 'Transferencia', emoji: '🏦' },
-];
+export interface Account {
+  id: string;
+  name: string;
+  type: 'CASH' | 'BANK' | 'CREDIT_CARD';
+  balance: string;
+}
 
 interface Category {
   id: string;
@@ -22,20 +20,24 @@ interface Category {
 export interface Transaction {
   id: string;
   category_id: string | null;
+  account_id?: string;
+  destination_account_id?: string;
   amount: string;
-  type: 'EXPENSE' | 'INCOME';
+  type: 'EXPENSE' | 'INCOME' | 'TRANSFER';
   description: string;
   transaction_date: string;
-  payment_method?: PaymentMethod;
   category_name?: string;
   category_icon?: string;
   category_color?: string;
+  account_name?: string;
+  destination_account_name?: string;
 }
 
 interface AddTransactionSheetProps {
   isOpen: boolean;
   onClose: () => void;
   categories: Category[];
+  accounts: Account[];
   onSuccess: () => void;
   editingTransaction?: Transaction | null;
 }
@@ -44,15 +46,17 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   isOpen,
   onClose,
   categories,
+  accounts,
   onSuccess,
   editingTransaction = null,
 }) => {
-  const [type, setType] = useState<'EXPENSE' | 'INCOME'>('EXPENSE');
+  const [type, setType] = useState<'EXPENSE' | 'INCOME' | 'TRANSFER'>('EXPENSE');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [destinationAccountId, setDestinationAccountId] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
@@ -63,19 +67,21 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       setType(editingTransaction.type);
       setAmount(editingTransaction.amount);
       setCategoryId(editingTransaction.category_id || '');
+      setAccountId(editingTransaction.account_id || '');
+      setDestinationAccountId(editingTransaction.destination_account_id || '');
       setDescription(editingTransaction.description || '');
       setDate(editingTransaction.transaction_date?.split('T')[0] || new Date().toISOString().split('T')[0]);
-      setPaymentMethod(editingTransaction.payment_method || 'CASH');
     } else {
       setType('EXPENSE');
       setAmount('');
       setCategoryId('');
+      setAccountId(accounts.length > 0 ? accounts[0].id : '');
+      setDestinationAccountId('');
       setDescription('');
       setDate(new Date().toISOString().split('T')[0]);
-      setPaymentMethod('CASH');
     }
     setError('');
-  }, [editingTransaction, isOpen]);
+  }, [editingTransaction, isOpen, accounts]);
 
   // Filter categories by selected type
   const filteredCategories = categories.filter(c => c.type === type);
@@ -89,15 +95,31 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       return;
     }
 
+    if (!accountId) {
+      setError('Debes seleccionar una cuenta de origen.');
+      return;
+    }
+
+    if (type === 'TRANSFER' && !destinationAccountId) {
+      setError('Debes seleccionar una cuenta de destino.');
+      return;
+    }
+    
+    if (type === 'TRANSFER' && accountId === destinationAccountId) {
+      setError('La cuenta origen y destino no pueden ser la misma.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const payload = {
-        category_id: categoryId || null,
+        category_id: type === 'TRANSFER' ? null : (categoryId || null),
+        account_id: accountId,
+        destination_account_id: type === 'TRANSFER' ? destinationAccountId : null,
         amount: parseFloat(amount).toFixed(2),
         type,
         description,
         transaction_date: date,
-        payment_method: paymentMethod,
       };
 
       if (editingTransaction) {
@@ -180,6 +202,12 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
           >
             Ingreso
           </button>
+          <button
+            type="button" onClick={() => { setType('TRANSFER'); setCategoryId(''); }}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${type === 'TRANSFER' ? 'bg-blue-500/90 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+          >
+            Transferencia
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -203,22 +231,63 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
             <div className="h-0.5 bg-slate-700 rounded-full mt-2 mx-8" />
           </div>
 
-          {/* Category - filtered by type */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Tag className="h-5 w-5 text-slate-400" />
+          {/* Accounts */}
+          <div className="space-y-3">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Wallet className="h-5 w-5 text-slate-400" />
+              </div>
+              <select
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                className="block w-full pl-11 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all appearance-none"
+                required
+              >
+                <option value="" disabled>Selecciona cuenta {type === 'TRANSFER' ? 'origen' : ''}</option>
+                {accounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>{acc.name} (${Number(acc.balance).toFixed(2)})</option>
+                ))}
+              </select>
             </div>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="block w-full pl-11 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all appearance-none"
-            >
-              <option value="">Sin categoría</option>
-              {filteredCategories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.icon_name} {cat.name}</option>
-              ))}
-            </select>
+
+            {type === 'TRANSFER' && (
+              <div className="relative mt-2">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <ArrowRight className="h-5 w-5 text-slate-400" />
+                </div>
+                <select
+                  value={destinationAccountId}
+                  onChange={(e) => setDestinationAccountId(e.target.value)}
+                  className="block w-full pl-11 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none"
+                  required
+                >
+                  <option value="" disabled>Selecciona cuenta destino</option>
+                  {accounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>{acc.name} (${Number(acc.balance).toFixed(2)})</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
+
+          {/* Category - filtered by type - hidden for transfer */}
+          {type !== 'TRANSFER' && (
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Tag className="h-5 w-5 text-slate-400" />
+              </div>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="block w-full pl-11 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all appearance-none"
+              >
+                <option value="">Sin categoría</option>
+                {filteredCategories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.icon_name} {cat.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Description */}
           <div className="relative">
@@ -248,40 +317,18 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
             />
           </div>
 
-          {/* Payment Method */}
-          <div>
-            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Wallet className="w-3.5 h-3.5" /> Método de pago
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {PAYMENT_METHODS.map((pm) => (
-                <button
-                  key={pm.value}
-                  type="button"
-                  onClick={() => setPaymentMethod(pm.value)}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all border ${
-                    paymentMethod === pm.value
-                      ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 shadow-sm'
-                      : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-                  }`}
-                >
-                  <span className="text-base">{pm.emoji}</span>
-                  <span>{pm.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
           <button
             type="submit"
             disabled={isLoading}
             className={`w-full flex justify-center py-4 rounded-xl text-white font-bold text-base transition-all active:scale-[0.98] ${
               type === 'EXPENSE'
                 ? 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-400 hover:to-rose-500'
+                : type === 'TRANSFER'
+                ? 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500'
                 : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500'
-            } disabled:opacity-50`}
+            } disabled:opacity-50 mt-4`}
           >
-            {isLoading ? 'Guardando...' : isEditing ? 'Guardar Cambios' : `Guardar ${type === 'EXPENSE' ? 'Gasto' : 'Ingreso'}`}
+            {isLoading ? 'Guardando...' : isEditing ? 'Guardar Cambios' : `Guardar ${type === 'EXPENSE' ? 'Gasto' : type === 'TRANSFER' ? 'Transferencia' : 'Ingreso'}`}
           </button>
         </form>
       </div>
