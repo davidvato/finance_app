@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { X, Tag, FileText, CalendarDays, Trash2 } from 'lucide-react';
+import { X, Tag, FileText, CalendarDays, Trash2, Wallet } from 'lucide-react';
 import axios from 'axios';
+
+type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'TRANSFER';
+
+const PAYMENT_METHODS: { value: PaymentMethod; label: string; emoji: string }[] = [
+  { value: 'CASH', label: 'Efectivo', emoji: '💵' },
+  { value: 'CREDIT_CARD', label: 'Tarjeta de Crédito', emoji: '💳' },
+  { value: 'DEBIT_CARD', label: 'Tarjeta de Débito', emoji: '🏧' },
+  { value: 'TRANSFER', label: 'Transferencia', emoji: '🏦' },
+];
 
 interface Category {
   id: string;
@@ -17,6 +26,7 @@ export interface Transaction {
   type: 'EXPENSE' | 'INCOME';
   description: string;
   transaction_date: string;
+  payment_method?: PaymentMethod;
   category_name?: string;
   category_icon?: string;
   category_color?: string;
@@ -42,6 +52,7 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const [categoryId, setCategoryId] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
@@ -54,12 +65,14 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       setCategoryId(editingTransaction.category_id || '');
       setDescription(editingTransaction.description || '');
       setDate(editingTransaction.transaction_date?.split('T')[0] || new Date().toISOString().split('T')[0]);
+      setPaymentMethod(editingTransaction.payment_method || 'CASH');
     } else {
       setType('EXPENSE');
       setAmount('');
       setCategoryId('');
       setDescription('');
       setDate(new Date().toISOString().split('T')[0]);
+      setPaymentMethod('CASH');
     }
     setError('');
   }, [editingTransaction, isOpen]);
@@ -84,6 +97,7 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         type,
         description,
         transaction_date: date,
+        payment_method: paymentMethod,
       };
 
       if (editingTransaction) {
@@ -232,6 +246,30 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
               className="block w-full pl-11 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
               required
             />
+          </div>
+
+          {/* Payment Method */}
+          <div>
+            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Wallet className="w-3.5 h-3.5" /> Método de pago
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {PAYMENT_METHODS.map((pm) => (
+                <button
+                  key={pm.value}
+                  type="button"
+                  onClick={() => setPaymentMethod(pm.value)}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all border ${
+                    paymentMethod === pm.value
+                      ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 shadow-sm'
+                      : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                  }`}
+                >
+                  <span className="text-base">{pm.emoji}</span>
+                  <span>{pm.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <button

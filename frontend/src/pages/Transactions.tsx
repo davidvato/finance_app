@@ -16,6 +16,13 @@ interface Category {
 
 type FilterType = 'ALL' | 'EXPENSE' | 'INCOME';
 
+const PAYMENT_METHOD_BADGE: Record<string, { emoji: string; label: string }> = {
+  CASH: { emoji: '💵', label: 'Efectivo' },
+  CREDIT_CARD: { emoji: '💳', label: 'Crédito' },
+  DEBIT_CARD: { emoji: '🏧', label: 'Débito' },
+  TRANSFER: { emoji: '🏦', label: 'Transferencia' },
+};
+
 const Transactions: React.FC = () => {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -238,9 +245,17 @@ const Transactions: React.FC = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-semibold truncate">{tx.description || tx.category_name || 'Sin descripción'}</p>
-                      <p className="text-slate-500 text-xs mt-0.5 truncate">
-                        {tx.category_icon && tx.category_name ? `${tx.category_icon} ${tx.category_name}` : 'Sin categoría'}
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-slate-500 text-xs truncate">
+                          {tx.category_icon && tx.category_name ? `${tx.category_icon} ${tx.category_name}` : 'Sin categoría'}
+                        </p>
+                        {tx.payment_method && PAYMENT_METHOD_BADGE[tx.payment_method] && (
+                          <span className="flex-shrink-0 flex items-center gap-0.5 text-xs text-slate-500 bg-slate-700/60 px-1.5 py-0.5 rounded-full">
+                            <span>{PAYMENT_METHOD_BADGE[tx.payment_method].emoji}</span>
+                            <span>{PAYMENT_METHOD_BADGE[tx.payment_method].label}</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-col items-end flex-shrink-0">
                       <span className={`font-bold ${tx.type === 'INCOME' ? 'text-emerald-400' : 'text-red-400'}`}>
