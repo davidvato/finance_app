@@ -47,6 +47,8 @@ const Dashboard: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summaries, setSummaries] = useState<BudgetSummary[]>([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [showAllExpenses, setShowAllExpenses] = useState(false);
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
   const [currentDate, setCurrentDate] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -239,7 +241,7 @@ const Dashboard: React.FC = () => {
                   </ResponsiveContainer>
                 </div>
                 <div className="w-full md:w-2/3 space-y-2">
-                  {chartData.slice(0, 4).map((d) => (
+                  {chartData.slice(0, showAllExpenses ? chartData.length : 4).map((d) => (
                     <div key={d.name} className="flex items-center text-sm w-full">
                       <div className="flex items-center gap-2 shrink-0">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
@@ -252,8 +254,11 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
                   ))}
-                  {chartData.length > 4 && (
-                    <p className="text-center md:text-left text-xs text-slate-500 mt-3 font-medium cursor-pointer">Ver {chartData.length - 4} más...</p>
+                  {chartData.length > 4 && !showAllExpenses && (
+                    <p onClick={() => setShowAllExpenses(true)} className="text-center md:text-left text-xs text-slate-500 mt-3 font-medium cursor-pointer hover:text-slate-300">Ver {chartData.length - 4} más...</p>
+                  )}
+                  {chartData.length > 4 && showAllExpenses && (
+                    <p onClick={() => setShowAllExpenses(false)} className="text-center md:text-left text-xs text-slate-500 mt-3 font-medium cursor-pointer hover:text-slate-300">Ver menos</p>
                   )}
                 </div>
               </div>
@@ -299,7 +304,7 @@ const Dashboard: React.FC = () => {
                     </ResponsiveContainer>
                   </div>
                   <div className="w-full md:w-2/3 space-y-2">
-                    {accountsChartData.slice(0, 4).map((d) => (
+                    {accountsChartData.slice(0, showAllAccounts ? accountsChartData.length : 4).map((d) => (
                       <div key={d.name} className="flex items-center text-sm w-full">
                         <div className="flex items-center gap-2 shrink-0">
                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
@@ -316,8 +321,11 @@ const Dashboard: React.FC = () => {
                         </div>
                       </div>
                     ))}
-                    {accountsChartData.length > 4 && (
-                      <p className="text-center md:text-left text-xs text-slate-500 mt-3 font-medium cursor-pointer">Ver {accountsChartData.length - 4} más...</p>
+                    {accountsChartData.length > 4 && !showAllAccounts && (
+                      <p onClick={() => setShowAllAccounts(true)} className="text-center md:text-left text-xs text-slate-500 mt-3 font-medium cursor-pointer hover:text-slate-300">Ver {accountsChartData.length - 4} más...</p>
+                    )}
+                    {accountsChartData.length > 4 && showAllAccounts && (
+                      <p onClick={() => setShowAllAccounts(false)} className="text-center md:text-left text-xs text-slate-500 mt-3 font-medium cursor-pointer hover:text-slate-300">Ver menos</p>
                     )}
                   </div>
                 </div>
