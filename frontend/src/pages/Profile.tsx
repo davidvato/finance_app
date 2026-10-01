@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { User, Calendar, Save, ArrowLeft, Wallet, ChevronRight } from 'lucide-react';
+import { User, Calendar, Save, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -47,22 +47,6 @@ const Profile: React.FC = () => {
           <p className="text-slate-400 text-sm">{user?.role}</p>
         </div>
 
-        {/* Link to Accounts */}
-        <div 
-          onClick={() => navigate('/accounts')}
-          className="bg-slate-800/60 border border-slate-700/40 rounded-3xl p-5 flex items-center justify-between cursor-pointer hover:bg-slate-800 transition-all active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center">
-              <Wallet className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-white font-bold">Mis Cuentas</h3>
-              <p className="text-slate-400 text-xs mt-0.5">Bancos, efectivo y tarjetas</p>
-            </div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-slate-500" />
-        </div>
 
         <div className="bg-slate-800/60 border border-slate-700/40 rounded-3xl p-6">
           <h3 className="text-white font-semibold mb-4 flex items-center gap-2">

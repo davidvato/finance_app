@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ArrowLeftRight, Tag, ShieldCheck, LogOut, Target } from 'lucide-react';
+import { LayoutDashboard, ArrowLeftRight, Tag, ShieldCheck, LogOut, Target, Wallet } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,6 +15,7 @@ const BottomNav: React.FC = () => {
 
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Resumen' },
+    { to: '/accounts', icon: Wallet, label: 'Cuentas' },
     { to: '/transactions', icon: ArrowLeftRight, label: 'Movimientos' },
     { to: '/categories', icon: Tag, label: 'Categorías' },
     { to: '/budgets', icon: Target, label: 'Presupuestos' },
