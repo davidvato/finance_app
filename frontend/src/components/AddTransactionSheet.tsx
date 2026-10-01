@@ -83,8 +83,8 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     setError('');
   }, [editingTransaction, isOpen, accounts]);
 
-  // Filter categories by selected type
-  const filteredCategories = categories.filter(c => c.type === type);
+  // Filter categories by selected type (Transfers can use any category optionally)
+  const filteredCategories = type === 'TRANSFER' ? categories : categories.filter(c => c.type === type);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,7 +113,7 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     setIsLoading(true);
     try {
       const payload = {
-        category_id: type === 'TRANSFER' ? null : (categoryId || null),
+        category_id: categoryId || null,
         account_id: accountId,
         destination_account_id: type === 'TRANSFER' ? destinationAccountId : null,
         amount: parseFloat(amount).toFixed(2),
@@ -270,24 +270,22 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
             )}
           </div>
 
-          {/* Category - filtered by type - hidden for transfer */}
-          {type !== 'TRANSFER' && (
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Tag className="h-5 w-5 text-slate-400" />
-              </div>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="block w-full pl-11 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all appearance-none"
-              >
-                <option value="">Sin categoría</option>
-                {filteredCategories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.icon_name} {cat.name}</option>
-                ))}
-              </select>
+          {/* Category - optional for transfer */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <Tag className="h-5 w-5 text-slate-400" />
             </div>
-          )}
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="block w-full pl-11 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all appearance-none"
+            >
+              <option value="">Sin categoría</option>
+              {filteredCategories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.icon_name} {cat.name}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Description */}
           <div className="relative">

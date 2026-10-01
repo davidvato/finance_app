@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { TrendingDown, TrendingUp, Wallet, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
 import BottomNav from '../components/BottomNav';
 import AddTransactionSheet, { type Account } from '../components/AddTransactionSheet';
 import { useAuth } from '../context/AuthContext';
@@ -112,6 +112,11 @@ const Dashboard: React.FC = () => {
       ...item,
       color: CHART_COLORS[index % CHART_COLORS.length]
     }));
+
+  const accountsData = accounts.map(acc => ({
+    name: acc.name,
+    balance: parseFloat(acc.balance)
+  }));
 
   return (
     <div className="min-h-screen bg-slate-900 pb-28">
@@ -226,6 +231,31 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Accounts Section */}
+        {accounts.length > 0 && (
+          <div>
+            <h3 className="text-white font-semibold mb-4 text-lg">Saldos por Cuenta</h3>
+            <div className="bg-slate-800/50 border border-slate-700/40 rounded-3xl p-5 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={accountsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                  <Tooltip 
+                    formatter={(value: any) => `$${Number(value).toLocaleString('es-MX')}`}
+                    contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff' }}
+                    cursor={{ fill: '#334155' }}
+                  />
+                  <Bar dataKey="balance" radius={[4, 4, 0, 0]}>
+                    {accountsData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.balance >= 0 ? '#10b981' : '#ef4444'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
 
         {/* Budgets Section */}
         {withBudget.length > 0 && (
