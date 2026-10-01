@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { TrendingDown, TrendingUp, Wallet, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import BottomNav from '../components/BottomNav';
 import AddTransactionSheet, { type Account } from '../components/AddTransactionSheet';
 import { useAuth } from '../context/AuthContext';
@@ -29,8 +29,10 @@ interface BudgetSummary {
 interface Transaction {
   id: string;
   category_id: string;
+  account_id?: string;
+  destination_account_id?: string;
   amount: string;
-  type: 'EXPENSE' | 'INCOME';
+  type: 'EXPENSE' | 'INCOME' | 'TRANSFER';
   description: string;
   transaction_date: string;
   category_name?: string;
@@ -113,10 +115,36 @@ const Dashboard: React.FC = () => {
       color: CHART_COLORS[index % CHART_COLORS.length]
     }));
 
-  const accountsData = accounts.map(acc => ({
-    name: acc.name,
-    balance: parseFloat(acc.balance)
-  }));
+  const accountsAtCycleEnd = accounts.map(acc => {
+    let accBalance = parseFloat(acc.balance);
+    const futureTx = transactions.filter(tx => tx.transaction_date.split('T')[0] > cycle.endDate);
+    
+    futureTx.forEach(tx => {
+      const amount = parseFloat(tx.amount);
+      if (tx.type === 'INCOME' && tx.account_id === acc.id) {
+        accBalance -= amount;
+      } else if (tx.type === 'EXPENSE' && tx.account_id === acc.id) {
+        accBalance += amount;
+      } else if (tx.type === 'TRANSFER') {
+        if (tx.account_id === acc.id) accBalance += amount;
+        if (tx.destination_account_id === acc.id) accBalance -= amount;
+      }
+    });
+
+    return { ...acc, historicalBalance: accBalance };
+  });
+
+  const totalBalances = accountsAtCycleEnd.reduce((acc, a) => acc + Math.abs(a.historicalBalance), 0);
+
+  const accountsChartData = accountsAtCycleEnd
+    .filter(acc => acc.historicalBalance !== 0)
+    .sort((a, b) => Math.abs(b.historicalBalance) - Math.abs(a.historicalBalance))
+    .map((acc, index) => ({
+      name: acc.name,
+      value: Math.abs(acc.historicalBalance),
+      realValue: acc.historicalBalance,
+      color: CHART_COLORS[index % CHART_COLORS.length]
+    }));
 
   return (
     <div className="min-h-screen bg-slate-900 pb-28">
@@ -236,23 +264,63 @@ const Dashboard: React.FC = () => {
         {accounts.length > 0 && (
           <div>
             <h3 className="text-white font-semibold mb-4 text-lg">Saldos por Cuenta</h3>
-            <div className="bg-slate-800/50 border border-slate-700/40 rounded-3xl p-5 h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={accountsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
-                  <Tooltip 
-                    formatter={(value: any) => `$${Number(value).toLocaleString('es-MX')}`}
-                    contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff' }}
-                    cursor={{ fill: '#334155' }}
-                  />
-                  <Bar dataKey="balance" radius={[4, 4, 0, 0]}>
-                    {accountsData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.balance >= 0 ? '#10b981' : '#ef4444'} />
+            <div className="bg-slate-800/50 border border-slate-700/40 rounded-3xl p-5">
+              {accountsChartData.length > 0 ? (
+                <div className="flex flex-col md:flex-row items-center gap-6">
+                  <div className="h-36 w-full md:w-1/3">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={accountsChartData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={70}
+                          paddingAngle={5}
+                          dataKey="value"
+                          stroke="none"
+                        >
+                          {accountsChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: any, name: any, props: any) => `$${Number(props.payload.realValue).toLocaleString('es-MX')}`}
+                          contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff' }}
+                          itemStyle={{ color: '#e2e8f0' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="w-full md:w-2/3 space-y-2">
+                    {accountsChartData.slice(0, 4).map((d) => (
+                      <div key={d.name} className="flex items-center text-sm w-full">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
+                          <span className="text-slate-300">{d.name}</span>
+                        </div>
+                        <div className="flex-grow border-b border-dotted border-slate-600 mx-3 relative top-[-4px]"></div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className={`font-semibold ${d.realValue < 0 ? 'text-red-400' : 'text-white'}`}>
+                            ${d.realValue.toLocaleString('es-MX')}
+                          </span>
+                          <span className="text-slate-500 text-xs w-8 text-right">
+                            {totalBalances > 0 ? Math.round((d.value / totalBalances) * 100) : 0}%
+                          </span>
+                        </div>
+                      </div>
                     ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                    {accountsChartData.length > 4 && (
+                      <p className="text-center md:text-left text-xs text-slate-500 mt-3 font-medium cursor-pointer">Ver {accountsChartData.length - 4} más...</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center opacity-70">
+                  <Wallet className="w-12 h-12 text-slate-600 mb-3" />
+                  <p className="text-slate-300 font-medium">No hay saldos en esta fecha</p>
+                </div>
+              )}
             </div>
           </div>
         )}
