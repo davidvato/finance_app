@@ -285,7 +285,7 @@ const Dashboard: React.FC = () => {
                           ))}
                         </Pie>
                         <Tooltip
-                          formatter={(value: any, name: any, props: any) => `$${Number(props.payload.realValue).toLocaleString('es-MX')}`}
+                          formatter={(_value: any, _name: any, props: any) => `$${Number(props.payload.realValue).toLocaleString('es-MX')}`}
                           contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff' }}
                           itemStyle={{ color: '#e2e8f0' }}
                         />
