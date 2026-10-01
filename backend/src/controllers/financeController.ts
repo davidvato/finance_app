@@ -117,25 +117,41 @@ export const updateTransaction = async (req: AuthRequest, res: Response): Promis
   const { id } = req.params;
   const { category_id, account_id, destination_account_id, amount, type, description, transaction_date } = req.body;
   try {
+    const updateFields: string[] = [];
+    const values: any[] = [];
+    let queryIndex = 1;
+
+    if (category_id !== undefined) { updateFields.push(`category_id = $${queryIndex++}`); values.push(category_id); }
+    if (account_id !== undefined) { updateFields.push(`account_id = $${queryIndex++}`); values.push(account_id); }
+    if (destination_account_id !== undefined) { updateFields.push(`destination_account_id = $${queryIndex++}`); values.push(destination_account_id); }
+    if (amount !== undefined) { updateFields.push(`amount = $${queryIndex++}`); values.push(amount); }
+    if (type !== undefined) { updateFields.push(`type = $${queryIndex++}`); values.push(type); }
+    if (description !== undefined) { updateFields.push(`description = $${queryIndex++}`); values.push(description); }
+    if (transaction_date !== undefined) { updateFields.push(`transaction_date = $${queryIndex++}`); values.push(transaction_date); }
+
+    if (updateFields.length === 0) {
+      res.status(400).json({ error: 'No fields to update' }); return;
+    }
+
+    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+    const idIndex = queryIndex++;
+    const userIdIndex = queryIndex++;
+    values.push(id, req.user?.id);
+
     const result = await query(
       `UPDATE transactions
-       SET category_id = COALESCE($1, category_id),
-           account_id = COALESCE($2, account_id),
-           destination_account_id = COALESCE($3, destination_account_id),
-           amount = COALESCE($4, amount),
-           type = COALESCE($5, type),
-           description = COALESCE($6, description),
-           transaction_date = COALESCE($7, transaction_date),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $8 AND user_id = $9 AND deleted_at IS NULL
+       SET ${updateFields.join(', ')}
+       WHERE id = $${idIndex} AND user_id = $${userIdIndex} AND deleted_at IS NULL
        RETURNING *`,
-      [category_id, account_id, destination_account_id, amount, type, description, transaction_date, id, req.user?.id]
+      values
     );
+
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Transaction not found' }); return;
     }
     res.json(result.rows[0]);
-  } catch (error) {
+  } catch (error: any) {
+    console.error(error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
