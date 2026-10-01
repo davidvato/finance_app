@@ -126,8 +126,6 @@ const Transactions: React.FC = () => {
     return `${prefix}$${num.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const activeCategory = filterCategoryId ? categories.find(c => c.id === filterCategoryId) : null;
-  const activeAccount = filterAccountId ? accounts.find(a => a.id === filterAccountId) : null;
 
   // Categories available for current type filter
   const availableCatFilter = filterType === 'ALL' || filterType === 'TRANSFER'
