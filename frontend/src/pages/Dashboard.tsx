@@ -79,21 +79,27 @@ const Dashboard: React.FC = () => {
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
-  // Filter transactions for current cycle
+  // Map transactions to include their effective type based on category if it's a transfer
   const monthlyTx = transactions.filter(tx => {
     const txDate = tx.transaction_date.split('T')[0];
     return txDate >= cycle.startDate && txDate <= cycle.endDate;
+  }).map(tx => {
+    if (tx.type === 'TRANSFER' && tx.category_id) {
+      const cat = categories.find(c => c.id === tx.category_id);
+      return { ...tx, effectiveType: cat ? cat.type : tx.type };
+    }
+    return { ...tx, effectiveType: tx.type };
   });
 
-  const expenses = monthlyTx.filter(t => t.type === 'EXPENSE').reduce((acc, t) => acc + parseFloat(t.amount), 0);
-  const income = monthlyTx.filter(t => t.type === 'INCOME').reduce((acc, t) => acc + parseFloat(t.amount), 0);
+  const expenses = monthlyTx.filter(t => t.effectiveType === 'EXPENSE').reduce((acc, t) => acc + parseFloat(t.amount), 0);
+  const income = monthlyTx.filter(t => t.effectiveType === 'INCOME').reduce((acc, t) => acc + parseFloat(t.amount), 0);
   const balance = income - expenses;
 
   const withBudget = summaries.filter(s => s.limit_amount !== null);
 
   // Data for Donut Chart
   const expensesByCategory = monthlyTx
-    .filter(t => t.type === 'EXPENSE')
+    .filter(t => t.effectiveType === 'EXPENSE')
     .reduce((acc, tx) => {
       const key = tx.category_name || 'Sin categoría';
       if (!acc[key]) {
