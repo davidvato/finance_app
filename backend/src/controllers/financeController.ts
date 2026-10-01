@@ -254,7 +254,7 @@ export const getBudgetSummary = async (req: AuthRequest, res: Response): Promise
         AND t.transaction_date <= $4::date
         AND t.user_id = $1
         AND t.deleted_at IS NULL
-        AND t.type = 'EXPENSE'
+        AND t.type IN ('EXPENSE', 'TRANSFER')
       WHERE c.user_id = $1 AND c.deleted_at IS NULL AND c.type = 'EXPENSE'
       GROUP BY c.id, c.name, c.icon_name, c.color_hex, mb.limit_amount, c.budget_amount
       ORDER BY spent_amount DESC`,
