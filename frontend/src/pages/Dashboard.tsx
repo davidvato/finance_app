@@ -125,20 +125,33 @@ const Dashboard: React.FC = () => {
 
   const accountsAtCycleEnd = accounts.map(acc => {
     let accBalance = 0;
+    const isCreditCard = acc.type === 'CREDIT_CARD';
+
     const cycleTx = transactions.filter(tx => {
       const txDate = tx.transaction_date.split('T')[0];
       return txDate >= cycle.startDate && txDate <= cycle.endDate;
     });
-    
+
     cycleTx.forEach(tx => {
       const amount = parseFloat(tx.amount);
-      if (tx.type === 'INCOME' && tx.account_id === acc.id) {
-        accBalance += amount;
-      } else if (tx.type === 'EXPENSE' && tx.account_id === acc.id) {
-        accBalance -= amount;
-      } else if (tx.type === 'TRANSFER') {
-        if (tx.account_id === acc.id) accBalance -= amount;
-        if (tx.destination_account_id === acc.id) accBalance += amount;
+
+      if (isCreditCard) {
+        // For credit cards: only count new charges (EXPENSE) made this cycle.
+        // Ignore payments/transfers in (those correspond to paying off the PREVIOUS cycle's debt).
+        if (tx.type === 'EXPENSE' && tx.account_id === acc.id) {
+          accBalance -= amount; // debt grows
+        }
+        // Intentionally skip INCOME and TRANSFER destinations for credit cards
+      } else {
+        // For BANK / CASH accounts: standard net flow for the cycle
+        if (tx.type === 'INCOME' && tx.account_id === acc.id) {
+          accBalance += amount;
+        } else if (tx.type === 'EXPENSE' && tx.account_id === acc.id) {
+          accBalance -= amount;
+        } else if (tx.type === 'TRANSFER') {
+          if (tx.account_id === acc.id) accBalance -= amount;
+          if (tx.destination_account_id === acc.id) accBalance += amount;
+        }
       }
     });
 
