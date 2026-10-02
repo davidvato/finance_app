@@ -90,22 +90,32 @@ const Dashboard: React.FC = () => {
   }).map(tx => {
     if (tx.type === 'TRANSFER') {
       const destAccount = accounts.find(a => a.id === tx.destination_account_id);
-      if (destAccount?.exclude_from_balance) {
-        // Money going into a locked account = expense (left your liquid pool)
+      const srcAccount = accounts.find(a => a.id === tx.account_id);
+      
+      // If moving liquid -> locked, it's an expense from our liquid pool
+      if (destAccount?.exclude_from_balance && !srcAccount?.exclude_from_balance) {
         return { ...tx, effectiveType: 'EXPENSE' as const };
       }
-      const srcAccount = accounts.find(a => a.id === tx.account_id);
-      if (srcAccount?.exclude_from_balance) {
-        // Money coming out of a locked account = income (returns to liquid pool)
+      // If moving locked -> liquid, it's an income to our liquid pool
+      if (srcAccount?.exclude_from_balance && !destAccount?.exclude_from_balance) {
         return { ...tx, effectiveType: 'INCOME' as const };
       }
+      // If moving locked -> locked, ignore for liquid balance
+      if (srcAccount?.exclude_from_balance && destAccount?.exclude_from_balance) {
+        return { ...tx, effectiveType: 'IGNORE' as any };
+      }
+
       if (tx.category_id) {
         const cat = categories.find(c => c.id === tx.category_id);
         return { ...tx, effectiveType: cat ? cat.type : tx.type };
       }
-    }
-    if (tx.type !== 'TRANSFER' && tx.category_id) {
-      // non-transfer with category: use category type (should match tx.type normally)
+    } else {
+      // Direct INCOME or EXPENSE
+      const account = accounts.find(a => a.id === tx.account_id);
+      if (account?.exclude_from_balance) {
+        // Direct movements inside a locked account don't affect our liquid monthly balance
+        return { ...tx, effectiveType: 'IGNORE' as any };
+      }
     }
     return { ...tx, effectiveType: tx.type };
   });
