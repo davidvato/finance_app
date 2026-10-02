@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 export const getAccounts = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const result = await query(
-      `SELECT a.id, a.name, a.type, a.created_at, a.updated_at,
+      `SELECT a.id, a.name, a.type, a.exclude_from_balance, a.created_at, a.updated_at,
         a.balance + COALESCE(
           (SELECT SUM(
             CASE 
@@ -32,12 +32,12 @@ export const getAccounts = async (req: AuthRequest, res: Response): Promise<void
 };
 
 export const createAccount = async (req: AuthRequest, res: Response): Promise<void> => {
-  const { name, type, balance = 0.00 } = req.body;
+  const { name, type, balance = 0.00, exclude_from_balance = false } = req.body;
   if (!name || !type) { res.status(400).json({ error: 'Name and type are required' }); return; }
   try {
     const result = await query(
-      'INSERT INTO accounts (id, user_id, name, type, balance) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [crypto.randomUUID(), req.user?.id, name, type, balance]
+      'INSERT INTO accounts (id, user_id, name, type, balance, exclude_from_balance) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [crypto.randomUUID(), req.user?.id, name, type, balance, exclude_from_balance]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -47,17 +47,18 @@ export const createAccount = async (req: AuthRequest, res: Response): Promise<vo
 
 export const updateAccount = async (req: AuthRequest, res: Response): Promise<void> => {
   const { id } = req.params;
-  const { name, type, balance } = req.body;
+  const { name, type, balance, exclude_from_balance } = req.body;
   try {
     const result = await query(
       `UPDATE accounts 
        SET name = COALESCE($1, name),
            type = COALESCE($2, type),
            balance = COALESCE($3, balance),
+           exclude_from_balance = COALESCE($4, exclude_from_balance),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4 AND user_id = $5
+       WHERE id = $5 AND user_id = $6
        RETURNING *`,
-      [name, type, balance, id, req.user?.id]
+      [name, type, balance, exclude_from_balance ?? null, id, req.user?.id]
     );
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Account not found' }); return;

@@ -37,6 +37,7 @@ interface Transaction {
   transaction_date: string;
   category_name?: string;
   category_color?: string;
+  exclude_from_balance?: boolean;
 }
 
 const Dashboard: React.FC = () => {
@@ -82,24 +83,45 @@ const Dashboard: React.FC = () => {
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
   // Map transactions to include their effective type based on category if it's a transfer
+  // Transfers to excluded accounts are always counted as expense (money left liquid pool)
   const monthlyTx = transactions.filter(tx => {
     const txDate = tx.transaction_date.split('T')[0];
     return txDate >= cycle.startDate && txDate <= cycle.endDate;
   }).map(tx => {
-    if (tx.type === 'TRANSFER' && tx.category_id) {
-      const cat = categories.find(c => c.id === tx.category_id);
-      return { ...tx, effectiveType: cat ? cat.type : tx.type };
+    if (tx.type === 'TRANSFER') {
+      const destAccount = accounts.find(a => a.id === tx.destination_account_id);
+      if (destAccount?.exclude_from_balance) {
+        // Money going into a locked account = expense (left your liquid pool)
+        return { ...tx, effectiveType: 'EXPENSE' as const };
+      }
+      const srcAccount = accounts.find(a => a.id === tx.account_id);
+      if (srcAccount?.exclude_from_balance) {
+        // Money coming out of a locked account = income (returns to liquid pool)
+        return { ...tx, effectiveType: 'INCOME' as const };
+      }
+      if (tx.category_id) {
+        const cat = categories.find(c => c.id === tx.category_id);
+        return { ...tx, effectiveType: cat ? cat.type : tx.type };
+      }
+    }
+    if (tx.type !== 'TRANSFER' && tx.category_id) {
+      // non-transfer with category: use category type (should match tx.type normally)
     }
     return { ...tx, effectiveType: tx.type };
   });
 
-  const expenses = monthlyTx.filter(t => t.effectiveType === 'EXPENSE').reduce((acc, t) => acc + parseFloat(t.amount), 0);
-  const income = monthlyTx.filter(t => t.effectiveType === 'INCOME').reduce((acc, t) => acc + parseFloat(t.amount), 0);
+  // Exclude transactions that simply move money between liquid accounts (pure transfer, no locked account involved)
+  const balanceTx = monthlyTx.filter(t =>
+    t.effectiveType === 'EXPENSE' || t.effectiveType === 'INCOME'
+  );
+
+  const expenses = balanceTx.filter(t => t.effectiveType === 'EXPENSE').reduce((acc, t) => acc + parseFloat(t.amount), 0);
+  const income = balanceTx.filter(t => t.effectiveType === 'INCOME').reduce((acc, t) => acc + parseFloat(t.amount), 0);
   const balance = income - expenses;
 
   const withBudget = summaries.filter(s => s.limit_amount !== null);
 
-  // Data for Donut Chart
+  // Data for Donut Chart — use same balanceTx for consistency
   const expensesByCategory = monthlyTx
     .filter(t => t.effectiveType === 'EXPENSE')
     .reduce((acc, tx) => {
@@ -123,52 +145,51 @@ const Dashboard: React.FC = () => {
       color: CHART_COLORS[index % CHART_COLORS.length]
     }));
 
-  const accountsAtCycleEnd = accounts.map(acc => {
+  const liquidAccounts = accounts.filter(a => !a.exclude_from_balance);
+  const lockedAccounts = accounts.filter(a => a.exclude_from_balance);
+
+  const buildHistoricalBalances = (accs: Account[]) => accs.map(acc => {
     let accBalance = 0;
     const isCreditCard = acc.type === 'CREDIT_CARD';
-
     const cycleTx = transactions.filter(tx => {
       const txDate = tx.transaction_date.split('T')[0];
       return txDate >= cycle.startDate && txDate <= cycle.endDate;
     });
-
     cycleTx.forEach(tx => {
       const amount = parseFloat(tx.amount);
-
       if (isCreditCard) {
-        // For credit cards: only count new charges (EXPENSE) made this cycle.
-        // Ignore payments/transfers in (those correspond to paying off the PREVIOUS cycle's debt).
-        if (tx.type === 'EXPENSE' && tx.account_id === acc.id) {
-          accBalance -= amount; // debt grows
-        }
-        // Intentionally skip INCOME and TRANSFER destinations for credit cards
+        if (tx.type === 'EXPENSE' && tx.account_id === acc.id) accBalance -= amount;
       } else {
-        // For BANK / CASH accounts: standard net flow for the cycle
-        if (tx.type === 'INCOME' && tx.account_id === acc.id) {
-          accBalance += amount;
-        } else if (tx.type === 'EXPENSE' && tx.account_id === acc.id) {
-          accBalance -= amount;
-        } else if (tx.type === 'TRANSFER') {
+        if (tx.type === 'INCOME' && tx.account_id === acc.id) accBalance += amount;
+        else if (tx.type === 'EXPENSE' && tx.account_id === acc.id) accBalance -= amount;
+        else if (tx.type === 'TRANSFER') {
           if (tx.account_id === acc.id) accBalance -= amount;
           if (tx.destination_account_id === acc.id) accBalance += amount;
         }
       }
     });
-
     return { ...acc, historicalBalance: accBalance };
   });
 
-  const totalBalances = accountsAtCycleEnd.reduce((acc, a) => acc + Math.abs(a.historicalBalance), 0);
+  const liquidAtCycleEnd = buildHistoricalBalances(liquidAccounts);
+  const lockedAtCycleEnd = buildHistoricalBalances(lockedAccounts);
 
-  const accountsChartData = accountsAtCycleEnd
-    .filter(acc => acc.historicalBalance !== 0)
-    .sort((a, b) => Math.abs(b.historicalBalance) - Math.abs(a.historicalBalance))
-    .map((acc, index) => ({
-      name: acc.name,
-      value: Math.abs(acc.historicalBalance),
-      realValue: acc.historicalBalance,
-      color: CHART_COLORS[index % CHART_COLORS.length]
-    }));
+  const totalLiquidBalances = liquidAtCycleEnd.reduce((acc, a) => acc + Math.abs(a.historicalBalance), 0);
+  const totalLockedBalances = lockedAtCycleEnd.reduce((acc, a) => acc + Math.abs(a.historicalBalance), 0);
+
+  const buildChartData = (accs: ReturnType<typeof buildHistoricalBalances>, colorOffset = 0) =>
+    accs
+      .filter(a => a.historicalBalance !== 0)
+      .sort((a, b) => Math.abs(b.historicalBalance) - Math.abs(a.historicalBalance))
+      .map((a, index) => ({
+        name: a.name,
+        value: Math.abs(a.historicalBalance),
+        realValue: a.historicalBalance,
+        color: CHART_COLORS[(index + colorOffset) % CHART_COLORS.length]
+      }));
+
+  const accountsChartData = buildChartData(liquidAtCycleEnd);
+  const lockedChartData = buildChartData(lockedAtCycleEnd, 5);
 
   return (
     <div className="min-h-screen bg-slate-900 pb-28">
@@ -332,7 +353,7 @@ const Dashboard: React.FC = () => {
                             ${d.realValue.toLocaleString('es-MX')}
                           </span>
                           <span className="text-slate-500 text-xs w-8 text-right">
-                            {totalBalances > 0 ? Math.round((d.value / totalBalances) * 100) : 0}%
+                            {totalLiquidBalances > 0 ? Math.round((d.value / totalLiquidBalances) * 100) : 0}%
                           </span>
                         </div>
                       </div>
@@ -349,6 +370,65 @@ const Dashboard: React.FC = () => {
                 <div className="flex flex-col items-center justify-center py-8 text-center opacity-70">
                   <Wallet className="w-12 h-12 text-slate-600 mb-3" />
                   <p className="text-slate-300 font-medium">No hay saldos en esta fecha</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Locked / Investment Accounts Section */}
+        {lockedAccounts.length > 0 && (
+          <div>
+            <h3 className="text-white font-semibold mb-4 text-lg">🔒 Ahorros / Inversiones</h3>
+            <div className="bg-amber-500/5 border border-amber-500/20 rounded-3xl p-5">
+              {lockedChartData.length > 0 ? (
+                <div className="flex flex-col md:flex-row items-center gap-6">
+                  <div className="h-36 w-full md:w-1/3">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={lockedChartData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={70}
+                          paddingAngle={5}
+                          dataKey="value"
+                          stroke="none"
+                        >
+                          {lockedChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(_value: any, _name: any, props: any) => `$${Number(props.payload.realValue).toLocaleString('es-MX')}`}
+                          contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff' }}
+                          itemStyle={{ color: '#e2e8f0' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="w-full md:w-2/3 space-y-2">
+                    {lockedChartData.map((d) => (
+                      <div key={d.name} className="flex items-center text-sm w-full">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
+                          <span className="text-slate-300">{d.name}</span>
+                        </div>
+                        <div className="flex-grow border-b border-dotted border-amber-900/40 mx-3 relative top-[-4px]"></div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="font-semibold text-amber-400">${d.realValue.toLocaleString('es-MX')}</span>
+                          <span className="text-slate-500 text-xs w-8 text-right">
+                            {totalLockedBalances > 0 ? Math.round((d.value / totalLockedBalances) * 100) : 0}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-6 text-center opacity-70">
+                  <p className="text-slate-400 font-medium">Sin movimientos retenidos este mes</p>
                 </div>
               )}
             </div>

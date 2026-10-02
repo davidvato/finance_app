@@ -7,6 +7,7 @@ export interface Account {
   name: string;
   type: 'CASH' | 'BANK' | 'CREDIT_CARD';
   balance: string;
+  exclude_from_balance: boolean;
 }
 
 interface Category {

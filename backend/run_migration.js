@@ -8,7 +8,7 @@ const pool = new Pool({
 
 async function runMigration() {
   try {
-    const sql = fs.readFileSync('./db/migrations/005_add_transfer_type.sql', 'utf8');
+    const sql = fs.readFileSync('./db/migrations/006_account_exclude_from_balance.sql', 'utf8');
     await pool.query(sql);
     console.log('Migration 005 ran successfully');
   } catch (err) {
