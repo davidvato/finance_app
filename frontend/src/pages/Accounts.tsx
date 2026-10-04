@@ -9,6 +9,7 @@ interface Account {
   type: 'CASH' | 'BANK' | 'CREDIT_CARD';
   balance: string;
   exclude_from_balance: boolean;
+  cutoff_day?: number | null;
 }
 
 const TYPE_CONFIG = {
@@ -30,6 +31,7 @@ const Accounts: React.FC = () => {
   const [type, setType] = useState<'CASH' | 'BANK' | 'CREDIT_CARD'>('BANK');
   const [balance, setBalance] = useState('');
   const [excludeFromBalance, setExcludeFromBalance] = useState(false);
+  const [cutoffDay, setCutoffDay] = useState('');
   const [error, setError] = useState('');
 
   const fetchAccounts = async () => {
@@ -55,12 +57,14 @@ const Accounts: React.FC = () => {
       setType(account.type);
       setBalance(account.balance);
       setExcludeFromBalance(account.exclude_from_balance);
+      setCutoffDay(account.cutoff_day ? account.cutoff_day.toString() : '');
     } else {
       setEditingAccount(null);
       setName('');
       setType('BANK');
       setBalance('');
       setExcludeFromBalance(false);
+      setCutoffDay('');
     }
     setError('');
     setIsModalOpen(true);
@@ -83,6 +87,7 @@ const Accounts: React.FC = () => {
           type,
           balance: balance ? parseFloat(balance).toFixed(2) : 0,
           exclude_from_balance: excludeFromBalance,
+          cutoff_day: type === 'CREDIT_CARD' && cutoffDay ? parseInt(cutoffDay, 10) : null,
         }, { withCredentials: true });
       } else {
         await axios.post('/api/accounts', {
@@ -90,6 +95,7 @@ const Accounts: React.FC = () => {
           type,
           balance: balance ? parseFloat(balance).toFixed(2) : 0,
           exclude_from_balance: excludeFromBalance,
+          cutoff_day: type === 'CREDIT_CARD' && cutoffDay ? parseInt(cutoffDay, 10) : null,
         }, { withCredentials: true });
       }
       
@@ -175,7 +181,14 @@ const Accounts: React.FC = () => {
                         </div>
                         <div>
                           <h3 className="text-white font-bold text-lg">{acc.name}</h3>
-                          <p className={`text-xs ${TYPE_CONFIG[acc.type].color}`}>{TYPE_CONFIG[acc.type].label}</p>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-xs ${TYPE_CONFIG[acc.type].color}`}>{TYPE_CONFIG[acc.type].label}</span>
+                            {acc.type === 'CREDIT_CARD' && acc.cutoff_day && (
+                              <span className="bg-rose-500/10 text-rose-300 border border-rose-500/20 px-1.5 py-0.5 rounded text-[10px] font-medium">
+                                Corte: día {acc.cutoff_day}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="text-right flex flex-col items-end">
@@ -291,6 +304,22 @@ const Accounts: React.FC = () => {
                   <p className="text-xs text-slate-500 mt-1">Si es deuda actual de tarjeta, ingresa el número en negativo (ej. -500).</p>
                 )}
               </div>
+
+              {type === 'CREDIT_CARD' && (
+                <div>
+                  <label className="block text-slate-300 text-sm mb-1">Día de corte</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={cutoffDay}
+                    onChange={(e) => setCutoffDay(e.target.value)}
+                    placeholder="Ej. 5, 11, 20"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Día del mes en que corta el estado de cuenta.</p>
+                </div>
+              )}
 
               {/* Exclude from balance toggle */}
               <button

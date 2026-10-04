@@ -94,15 +94,15 @@ export const getTransactions = async (req: AuthRequest, res: Response): Promise<
 };
 
 export const createTransaction = async (req: AuthRequest, res: Response): Promise<void> => {
-  const { id, category_id, account_id, destination_account_id, amount, type, description, transaction_date } = req.body;
+  const { id, category_id, account_id, destination_account_id, amount, type, description, transaction_date, payment_target_cycle } = req.body;
   const txId = id || crypto.randomUUID();
   try {
     const result = await query(
-      `INSERT INTO transactions (id, user_id, category_id, account_id, destination_account_id, amount, type, description, transaction_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO transactions (id, user_id, category_id, account_id, destination_account_id, amount, type, description, transaction_date, payment_target_cycle)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (id) DO NOTHING
        RETURNING *`,
-      [txId, req.user?.id, category_id, account_id, destination_account_id || null, amount, type, description, transaction_date]
+      [txId, req.user?.id, category_id, account_id, destination_account_id || null, amount, type, description, transaction_date, payment_target_cycle || null]
     );
     if (result.rows.length === 0) {
       res.status(200).json({ message: 'Transaction already synced' }); return;
@@ -115,7 +115,7 @@ export const createTransaction = async (req: AuthRequest, res: Response): Promis
 
 export const updateTransaction = async (req: AuthRequest, res: Response): Promise<void> => {
   const { id } = req.params;
-  const { category_id, account_id, destination_account_id, amount, type, description, transaction_date } = req.body;
+  const { category_id, account_id, destination_account_id, amount, type, description, transaction_date, payment_target_cycle } = req.body;
   try {
     const updateFields: string[] = [];
     const values: any[] = [];
@@ -128,6 +128,7 @@ export const updateTransaction = async (req: AuthRequest, res: Response): Promis
     if (type !== undefined) { updateFields.push(`type = $${queryIndex++}`); values.push(type); }
     if (description !== undefined) { updateFields.push(`description = $${queryIndex++}`); values.push(description); }
     if (transaction_date !== undefined) { updateFields.push(`transaction_date = $${queryIndex++}`); values.push(transaction_date); }
+    if (payment_target_cycle !== undefined) { updateFields.push(`payment_target_cycle = $${queryIndex++}`); values.push(payment_target_cycle || null); }
 
     if (updateFields.length === 0) {
       res.status(400).json({ error: 'No fields to update' }); return;
@@ -181,11 +182,11 @@ export const syncTransactions = async (req: AuthRequest, res: Response): Promise
     const synced = [];
     for (const tx of transactions) {
       const result = await query(
-        `INSERT INTO transactions (id, user_id, category_id, account_id, destination_account_id, amount, type, description, transaction_date)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO transactions (id, user_id, category_id, account_id, destination_account_id, amount, type, description, transaction_date, payment_target_cycle)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT (id) DO NOTHING
          RETURNING id`,
-        [tx.id, req.user?.id, tx.category_id, tx.account_id, tx.destination_account_id || null, tx.amount, tx.type, tx.description, tx.transaction_date]
+        [tx.id, req.user?.id, tx.category_id, tx.account_id, tx.destination_account_id || null, tx.amount, tx.type, tx.description, tx.transaction_date, tx.payment_target_cycle || null]
       );
       if (result.rows.length > 0) synced.push(tx.id);
     }

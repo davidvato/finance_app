@@ -38,6 +38,7 @@ interface Transaction {
   category_name?: string;
   category_color?: string;
   exclude_from_balance?: boolean;
+  payment_target_cycle?: 'CURRENT' | 'PREVIOUS' | null;
 }
 
 const Dashboard: React.FC = () => {
@@ -57,6 +58,8 @@ const Dashboard: React.FC = () => {
 
   const startDay = user?.budget_start_day || 1;
   const cycle = getCycleDates(currentDate, startDay);
+  const nextMonthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+  const nextCycle = getCycleDates(nextMonthDate, startDay);
 
   const fetchData = async () => {
     try {
@@ -161,23 +164,45 @@ const Dashboard: React.FC = () => {
   const buildHistoricalBalances = (accs: Account[]) => accs.map(acc => {
     let accBalance = 0;
     const isCreditCard = acc.type === 'CREDIT_CARD';
-    const cycleTx = transactions.filter(tx => {
-      const txDate = tx.transaction_date.split('T')[0];
-      return txDate >= cycle.startDate && txDate <= cycle.endDate;
-    });
-    cycleTx.forEach(tx => {
-      const amount = parseFloat(tx.amount);
-      if (isCreditCard) {
-        if (tx.type === 'EXPENSE' && tx.account_id === acc.id) accBalance -= amount;
-      } else {
+
+    if (isCreditCard) {
+      transactions.forEach(tx => {
+        const txDate = tx.transaction_date.split('T')[0];
+        const amount = parseFloat(tx.amount);
+
+        // 1. Debt increases with new purchases in this cycle
+        if (txDate >= cycle.startDate && txDate <= cycle.endDate) {
+          if (tx.type === 'EXPENSE' && tx.account_id === acc.id) {
+            accBalance -= amount;
+          }
+          // 2. Debt decreases if a payment in this cycle was targeted to CURRENT cycle
+          if (tx.type === 'TRANSFER' && tx.destination_account_id === acc.id && tx.payment_target_cycle === 'CURRENT') {
+            accBalance += amount;
+          }
+        }
+
+        // 3. Debt decreases if a payment in the subsequent cycle was targeted to PREVIOUS cycle (this cycle's balance)
+        if (txDate >= nextCycle.startDate && txDate <= nextCycle.endDate) {
+          if (tx.type === 'TRANSFER' && tx.destination_account_id === acc.id && tx.payment_target_cycle === 'PREVIOUS') {
+            accBalance += amount;
+          }
+        }
+      });
+    } else {
+      const cycleTx = transactions.filter(tx => {
+        const txDate = tx.transaction_date.split('T')[0];
+        return txDate >= cycle.startDate && txDate <= cycle.endDate;
+      });
+      cycleTx.forEach(tx => {
+        const amount = parseFloat(tx.amount);
         if (tx.type === 'INCOME' && tx.account_id === acc.id) accBalance += amount;
         else if (tx.type === 'EXPENSE' && tx.account_id === acc.id) accBalance -= amount;
         else if (tx.type === 'TRANSFER') {
           if (tx.account_id === acc.id) accBalance -= amount;
           if (tx.destination_account_id === acc.id) accBalance += amount;
         }
-      }
-    });
+      });
+    }
     return { ...acc, historicalBalance: accBalance };
   });
 
@@ -195,7 +220,9 @@ const Dashboard: React.FC = () => {
         name: a.name,
         value: Math.abs(a.historicalBalance),
         realValue: a.historicalBalance,
-        color: CHART_COLORS[(index + colorOffset) % CHART_COLORS.length]
+        color: CHART_COLORS[(index + colorOffset) % CHART_COLORS.length],
+        type: a.type,
+        cutoff_day: a.cutoff_day,
       }));
 
   const accountsChartData = buildChartData(liquidAtCycleEnd);
@@ -356,6 +383,11 @@ const Dashboard: React.FC = () => {
                         <div className="flex items-center gap-2 shrink-0">
                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
                           <span className="text-slate-300">{d.name}</span>
+                          {(d as any).type === 'CREDIT_CARD' && (d as any).cutoff_day && (
+                            <span className="text-[10px] bg-rose-500/10 text-rose-300 border border-rose-500/20 px-1.5 py-0.5 rounded font-medium">
+                              Corte: {(d as any).cutoff_day}
+                            </span>
+                          )}
                         </div>
                         <div className="flex-grow border-b border-dotted border-slate-600 mx-3 relative top-[-4px]"></div>
                         <div className="flex items-center gap-3 shrink-0">

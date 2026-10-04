@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 export const getAccounts = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const result = await query(
-      `SELECT a.id, a.name, a.type, a.exclude_from_balance, a.created_at, a.updated_at,
+      `SELECT a.id, a.name, a.type, a.cutoff_day, a.exclude_from_balance, a.created_at, a.updated_at,
         a.balance + COALESCE(
           (SELECT SUM(
             CASE 
@@ -32,12 +32,13 @@ export const getAccounts = async (req: AuthRequest, res: Response): Promise<void
 };
 
 export const createAccount = async (req: AuthRequest, res: Response): Promise<void> => {
-  const { name, type, balance = 0.00, exclude_from_balance = false } = req.body;
+  const { name, type, balance = 0.00, exclude_from_balance = false, cutoff_day = null } = req.body;
   if (!name || !type) { res.status(400).json({ error: 'Name and type are required' }); return; }
+  const parsedCutoff = type === 'CREDIT_CARD' && cutoff_day ? parseInt(cutoff_day, 10) : null;
   try {
     const result = await query(
-      'INSERT INTO accounts (id, user_id, name, type, balance, exclude_from_balance) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [crypto.randomUUID(), req.user?.id, name, type, balance, exclude_from_balance]
+      'INSERT INTO accounts (id, user_id, name, type, balance, exclude_from_balance, cutoff_day) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [crypto.randomUUID(), req.user?.id, name, type, balance, exclude_from_balance, parsedCutoff]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -47,7 +48,8 @@ export const createAccount = async (req: AuthRequest, res: Response): Promise<vo
 
 export const updateAccount = async (req: AuthRequest, res: Response): Promise<void> => {
   const { id } = req.params;
-  const { name, type, balance, exclude_from_balance } = req.body;
+  const { name, type, balance, exclude_from_balance, cutoff_day } = req.body;
+  const parsedCutoff = type === 'CREDIT_CARD' && cutoff_day !== undefined ? (cutoff_day ? parseInt(cutoff_day, 10) : null) : null;
   try {
     const result = await query(
       `UPDATE accounts 
@@ -55,10 +57,11 @@ export const updateAccount = async (req: AuthRequest, res: Response): Promise<vo
            type = COALESCE($2, type),
            balance = COALESCE($3, balance),
            exclude_from_balance = COALESCE($4, exclude_from_balance),
+           cutoff_day = CASE WHEN $2 = 'CREDIT_CARD' THEN $5 ELSE NULL END,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5 AND user_id = $6
+       WHERE id = $6 AND user_id = $7
        RETURNING *`,
-      [name, type, balance, exclude_from_balance ?? null, id, req.user?.id]
+      [name, type, balance, exclude_from_balance ?? null, parsedCutoff, id, req.user?.id]
     );
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Account not found' }); return;
