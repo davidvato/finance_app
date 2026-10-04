@@ -34,14 +34,17 @@ export const getAccounts = async (req: AuthRequest, res: Response): Promise<void
 export const createAccount = async (req: AuthRequest, res: Response): Promise<void> => {
   const { name, type, balance = 0.00, exclude_from_balance = false, cutoff_day = null } = req.body;
   if (!name || !type) { res.status(400).json({ error: 'Name and type are required' }); return; }
-  const parsedCutoff = type === 'CREDIT_CARD' && cutoff_day ? parseInt(cutoff_day, 10) : null;
+  const parsedCutoff = type === 'CREDIT_CARD' && cutoff_day !== undefined && cutoff_day !== null && cutoff_day !== ''
+    ? parseInt(cutoff_day, 10)
+    : null;
   try {
     const result = await query(
-      'INSERT INTO accounts (id, user_id, name, type, balance, exclude_from_balance, cutoff_day) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      'INSERT INTO accounts (id, user_id, name, type, balance, exclude_from_balance, cutoff_day) VALUES ($1, $2, $3, $4, $5, $6, $7::INTEGER) RETURNING *',
       [crypto.randomUUID(), req.user?.id, name, type, balance, exclude_from_balance, parsedCutoff]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
+    console.error('Error creating account:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -49,7 +52,9 @@ export const createAccount = async (req: AuthRequest, res: Response): Promise<vo
 export const updateAccount = async (req: AuthRequest, res: Response): Promise<void> => {
   const { id } = req.params;
   const { name, type, balance, exclude_from_balance, cutoff_day } = req.body;
-  const parsedCutoff = type === 'CREDIT_CARD' && cutoff_day !== undefined ? (cutoff_day ? parseInt(cutoff_day, 10) : null) : null;
+  const parsedCutoff = type === 'CREDIT_CARD' && cutoff_day !== undefined && cutoff_day !== null && cutoff_day !== ''
+    ? parseInt(cutoff_day, 10)
+    : null;
   try {
     const result = await query(
       `UPDATE accounts 
@@ -57,7 +62,7 @@ export const updateAccount = async (req: AuthRequest, res: Response): Promise<vo
            type = COALESCE($2, type),
            balance = COALESCE($3, balance),
            exclude_from_balance = COALESCE($4, exclude_from_balance),
-           cutoff_day = CASE WHEN $2 = 'CREDIT_CARD' THEN $5 ELSE NULL END,
+           cutoff_day = $5::INTEGER,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $6 AND user_id = $7
        RETURNING *`,
@@ -68,6 +73,7 @@ export const updateAccount = async (req: AuthRequest, res: Response): Promise<vo
     }
     res.json(result.rows[0]);
   } catch (error) {
+    console.error('Error updating account:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
