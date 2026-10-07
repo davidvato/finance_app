@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Tag, FileText, CalendarDays, Trash2, Wallet, ArrowRight } from 'lucide-react';
+import { X, Tag, FileText, CalendarDays, Trash2, Wallet, ArrowRight, Minus, Plus } from 'lucide-react';
 import axios from 'axios';
 
 export interface Account {
@@ -63,6 +63,8 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const [paymentTargetCycle, setPaymentTargetCycle] = useState<'CURRENT' | 'PREVIOUS'>('PREVIOUS');
   const [isMsi, setIsMsi] = useState(false);
   const [msiMonths, setMsiMonths] = useState<number>(3);
+  const [isCustomMsi, setIsCustomMsi] = useState(false);
+  const [customMonths, setCustomMonths] = useState<string>('3');
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
@@ -80,6 +82,8 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       setPaymentTargetCycle(editingTransaction.payment_target_cycle || 'PREVIOUS');
       setIsMsi(false);
       setMsiMonths(3);
+      setIsCustomMsi(false);
+      setCustomMonths('3');
     } else {
       setType('EXPENSE');
       setAmount('');
@@ -91,9 +95,58 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       setPaymentTargetCycle('PREVIOUS');
       setIsMsi(false);
       setMsiMonths(3);
+      setIsCustomMsi(false);
+      setCustomMonths('3');
     }
     setError('');
   }, [editingTransaction, isOpen, accounts]);
+
+  const handleSelectPresetMsi = (m: number) => {
+    setIsCustomMsi(false);
+    setMsiMonths(m);
+    setCustomMonths(String(m));
+  };
+
+  const handleSelectCustomMsi = () => {
+    setIsCustomMsi(true);
+    const parsed = parseInt(customMonths, 10);
+    if (!isNaN(parsed) && parsed >= 2 && parsed <= 72) {
+      setMsiMonths(parsed);
+    } else {
+      const fallback = msiMonths >= 2 && msiMonths <= 72 ? msiMonths : 3;
+      setCustomMonths(String(fallback));
+      setMsiMonths(fallback);
+    }
+  };
+
+  const handleCustomMonthsChange = (val: string) => {
+    setCustomMonths(val);
+    const num = parseInt(val, 10);
+    if (!isNaN(num) && num >= 2 && num <= 72) {
+      setMsiMonths(num);
+    }
+  };
+
+  const handleCustomBlur = () => {
+    const num = parseInt(customMonths, 10);
+    if (isNaN(num) || num < 2) {
+      setCustomMonths('2');
+      setMsiMonths(2);
+    } else if (num > 72) {
+      setCustomMonths('72');
+      setMsiMonths(72);
+    } else {
+      setCustomMonths(String(num));
+      setMsiMonths(num);
+    }
+  };
+
+  const adjustCustomMonths = (delta: number) => {
+    const current = parseInt(customMonths, 10) || msiMonths || 2;
+    const next = Math.min(72, Math.max(2, current + delta));
+    setCustomMonths(String(next));
+    setMsiMonths(next);
+  };
 
   // Filter categories by selected type (Transfers can use any category optionally)
   const filteredCategories = type === 'TRANSFER' ? categories : categories.filter(c => c.type === type);
@@ -128,14 +181,21 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     setIsLoading(true);
     try {
       // Check if MSI creation on a credit card expense
-      if (type === 'EXPENSE' && sourceAccount?.type === 'CREDIT_CARD' && isMsi && msiMonths > 1 && !editingTransaction) {
+      const finalMsiMonths = isCustomMsi ? parseInt(customMonths, 10) : msiMonths;
+      if (type === 'EXPENSE' && sourceAccount?.type === 'CREDIT_CARD' && isMsi && !editingTransaction) {
+        if (isNaN(finalMsiMonths) || finalMsiMonths < 2 || finalMsiMonths > 72) {
+          setError('El plazo a meses sin intereses debe ser entre 2 y 72 meses.');
+          setIsLoading(false);
+          return;
+        }
+
         const total = parseFloat(amount);
-        const base = Math.floor((total / msiMonths) * 100) / 100;
-        const diff = Math.round((total - (base * msiMonths)) * 100) / 100;
+        const base = Math.floor((total / finalMsiMonths) * 100) / 100;
+        const diff = Math.round((total - (base * finalMsiMonths)) * 100) / 100;
         
         const [year, month, day] = date.split('-').map(Number);
         const msiTransactions = [];
-        for (let i = 0; i < msiMonths; i++) {
+        for (let i = 0; i < finalMsiMonths; i++) {
           const targetMonthIndex = (month - 1) + i;
           const targetYear = year + Math.floor(targetMonthIndex / 12);
           const targetMonth = targetMonthIndex % 12;
@@ -151,7 +211,7 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
             destination_account_id: null,
             amount: itemAmount,
             type: 'EXPENSE' as const,
-            description: `${baseDesc} (${i + 1} de ${msiMonths})`,
+            description: `${baseDesc} (${i + 1} de ${finalMsiMonths})`,
             transaction_date: dStr,
             payment_target_cycle: null,
           });
@@ -387,16 +447,16 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
                 </div>
 
                 {isMsi && (
-                  <div className="pt-2 border-t border-slate-700/60 space-y-2">
+                  <div className="pt-2 border-t border-slate-700/60 space-y-2.5">
                     <label className="block text-xs text-slate-400 font-medium">Selecciona el plazo:</label>
-                    <div className="grid grid-cols-6 gap-1.5">
+                    <div className="grid grid-cols-7 gap-1.5">
                       {[3, 6, 9, 12, 18, 24].map((m) => (
                         <button
                           key={m}
                           type="button"
-                          onClick={() => setMsiMonths(m)}
+                          onClick={() => handleSelectPresetMsi(m)}
                           className={`py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            msiMonths === m
+                            !isCustomMsi && msiMonths === m
                               ? 'bg-emerald-500 text-white shadow'
                               : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
                           }`}
@@ -404,12 +464,89 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
                           {m}m
                         </button>
                       ))}
+                      <button
+                        type="button"
+                        onClick={handleSelectCustomMsi}
+                        className={`py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center ${
+                          isCustomMsi
+                            ? 'bg-emerald-500 text-white shadow'
+                            : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+                        }`}
+                      >
+                        Otro
+                      </button>
                     </div>
-                    {amount && parseFloat(amount) > 0 && (
-                      <p className="text-xs text-emerald-400 font-semibold bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
-                        Se crearán {msiMonths} cargos de ${(parseFloat(amount) / msiMonths).toFixed(2)} cada mes.
-                      </p>
+
+                    {isCustomMsi && (
+                      <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-slate-300">
+                            Plazo personalizado (2 a 72 meses):
+                          </span>
+                          <span className="text-xs font-bold text-emerald-400">
+                            {parseInt(customMonths, 10) >= 2 && parseInt(customMonths, 10) <= 72
+                              ? `${customMonths} meses`
+                              : 'Inválido'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => adjustCustomMonths(-1)}
+                            disabled={(parseInt(customMonths, 10) || msiMonths) <= 2}
+                            className="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-bold transition-all active:scale-95"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+
+                          <div className="relative flex-1">
+                            <input
+                              type="number"
+                              min={2}
+                              max={72}
+                              value={customMonths}
+                              onChange={(e) => handleCustomMonthsChange(e.target.value)}
+                              onBlur={handleCustomBlur}
+                              placeholder="Ej. 15"
+                              className="w-full text-center py-2 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white font-bold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none font-medium">
+                              meses
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => adjustCustomMonths(1)}
+                            disabled={(parseInt(customMonths, 10) || msiMonths) >= 72}
+                            className="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-bold transition-all active:scale-95"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {(isNaN(parseInt(customMonths, 10)) ||
+                          parseInt(customMonths, 10) < 2 ||
+                          parseInt(customMonths, 10) > 72) && (
+                          <p className="text-[11px] text-amber-400 font-medium">
+                            El plazo debe ser un número entero entre 2 y 72 meses.
+                          </p>
+                        )}
+                      </div>
                     )}
+
+                    {amount &&
+                      parseFloat(amount) > 0 &&
+                      (!isCustomMsi ||
+                        (parseInt(customMonths, 10) >= 2 && parseInt(customMonths, 10) <= 72)) && (
+                        <p className="text-xs text-emerald-400 font-semibold bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+                          Se crearán {isCustomMsi ? parseInt(customMonths, 10) : msiMonths} cargos de ${(
+                            parseFloat(amount) / (isCustomMsi ? parseInt(customMonths, 10) : msiMonths)
+                          ).toFixed(2)}{' '}
+                          cada mes.
+                        </p>
+                      )}
                   </div>
                 )}
               </div>
